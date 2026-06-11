@@ -1,0 +1,26 @@
+[
+  {
+    "templateId": "sales_v1",
+    "name": "Standard Sales Plan Template",
+    "filePath": "/backend/uploads/templates/sales_v1.xlsx",
+    "sheetName": "Sheet1",
+    "headerRow": 1,
+    "dataStartRow": 2,
+    "mapping": {
+      "CUSTOMER": "CUSTOMER",
+      "CUSTOMER DESC.": "CUSTOMER DESC.",
+      "ITEM": "ITEM",
+      "ITEM DESCRIPTION": "ITEM DESCRIPTION",
+      "Sales Plan Qty": "Sales Plan Qty",
+      "Sale Plan Value": "Sale Plan Value"
+    },
+    "summary": {
+      "enabled": true,
+      "sheetName": "Sheet1",
+      "customerHeader": "Customer",
+      "valueHeader": "Sum of Sale Plan Value",
+      "startCol": "W",
+      "startRow": 1
+    }
+  }
+]
