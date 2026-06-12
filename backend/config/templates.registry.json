@@ -2,7 +2,7 @@
   {
     "templateId": "sales_v1",
     "name": "Standard Sales Plan Template",
-    "filePath": "/backend/uploads/templates/sales_v1.xlsx",
+    "filePath": "backend/uploads/templates/sales_v1.xlsx",
     "sheetName": "Sheet1",
     "headerRow": 1,
     "dataStartRow": 2,

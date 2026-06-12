@@ -2,17 +2,87 @@ const express = require('express');
 const path = require('path');
 const fs = require('fs');
 const multer = require('multer');
-const { parseFileName, isExcelFile } = require('../services/fileParser');
-const { processSalesPlanWorkbook } = require('../services/excelProcessor');
+// TEMP FIX: Create local implementations until missing files are created
+// const { parseFileName, isExcelFile } = require('../services/fileParser');
+// const { processSalesPlanWorkbook } = require('../services/excelProcessor');
+
+// Local implementations for Phase 1
+function isExcelFile(filename) {
+  const ext = path.extname(filename).toLowerCase();
+  return ext === '.xlsx' || ext === '.xls';
+}
+
+function parseFileName(filename) {
+  // Extract month name, year, and sheet name from filename
+  // Example: "1.June Sales plan 2026.xlsx" -> month: "June", year: "2026", sheetName: "June Sales plan 2026"
+  if (!filename || typeof filename !== 'string') {
+    return {
+      month: null,
+      year: null,
+      sheetName: 'unknown'
+    };
+  }
+  
+  const nameWithoutExt = filename.replace(/\.(xlsx|xls)$/i, '');
+  
+  // Try to extract month and year
+  const monthMatch = nameWithoutExt.match(/(January|February|March|April|May|June|July|August|September|October|November|December)/i);
+  const yearMatch = nameWithoutExt.match(/\b(19|20)\d{2}\b/);
+  
+  // Sanitize sheet name for Excel (max 31 chars, no special chars)
+  let sheetName = nameWithoutExt.substring(0, 31);
+  sheetName = sheetName.replace(/[\\/*?:[\]]/g, '');
+  
+  return {
+    month: monthMatch ? monthMatch[0] : null,
+    year: yearMatch ? yearMatch[0] : null,
+    sheetName: sheetName || 'SalesPlan'
+  };
+}
+
+// Import the actual implementation from templateEngine
+const { processWorkbook } = require('../services/templateEngine');
+
+// Wrap processWorkbook to match expected interface
+async function processSalesPlanWorkbook({ sourcePath, outputPath, sheetName }) {
+  console.log('[excelProcessor] Processing workbook with templateEngine');
+  const result = await processWorkbook({
+    templateId: 'sales_v1',  // Hardcoded for Phase 1
+    inputFilePath: sourcePath,
+    outputFilePath: outputPath,
+    customSheetName: sheetName
+  });
+  
+  // Transform result to expected format
+  return {
+    totalRows: result.validation.totalRows,
+    totalCustomers: result.summaryRows ? result.summaryRows.length : 0,
+    summaryRows: result.summaryRows || [],
+    validation: result.validation
+  };
+}
 
 const router = express.Router();
+
 // Simple request logger for debugging upload flow
 router.use((req, res, next) => {
   console.log(`[${new Date().toISOString()}] ${req.method} ${req.originalUrl}`);
   next();
 });
+
 const uploadFolder = path.join(__dirname, '..', '..', 'uploads');
 const generatedFolder = path.join(uploadFolder, 'generated');
+
+// Ensure generated folder exists (with better error handling)
+try {
+  if (!fs.existsSync(generatedFolder)) {
+    fs.mkdirSync(generatedFolder, { recursive: true });
+    console.log('[API] Created generated folder:', generatedFolder);
+  }
+} catch (error) {
+  console.error('[API] Failed to create generated folder:', error.message);
+  // Don't throw - let the route handlers fail gracefully
+}
 
 const storage = multer.diskStorage({
   destination: (req, file, cb) => cb(null, uploadFolder),

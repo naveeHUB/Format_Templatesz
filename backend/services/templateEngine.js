@@ -30,19 +30,40 @@ async function processWorkbook({
   }
 
   // Determine absolute path of the template file
+  // Determine absolute path of the template file
   let absoluteTemplatePath = templateConfig.filePath;
+  
+  // If path is not absolute, resolve from project root
   if (!path.isAbsolute(absoluteTemplatePath)) {
-    // Treat as relative to workspace root (which contains backend)
-    absoluteTemplatePath = path.resolve(path.join(__dirname, '..', '..'), absoluteTemplatePath.replace(/^\//, ''));
+    // Try multiple possible locations
+    const possiblePaths = [
+      path.resolve(process.cwd(), absoluteTemplatePath), // From project root
+      path.resolve(__dirname, '..', '..', absoluteTemplatePath), // From backend directory
+      path.resolve(__dirname, '..', absoluteTemplatePath), // From services directory
+      path.join(process.cwd(), 'backend', 'uploads', 'templates', 'sales_v1.xlsx') // Fallback
+    ];
+    
+    for (const tryPath of possiblePaths) {
+      if (fs.existsSync(tryPath)) {
+        absoluteTemplatePath = tryPath;
+        break;
+      }
+    }
+    
+    // If still not found, try the original resolution method
+    if (!fs.existsSync(absoluteTemplatePath)) {
+      absoluteTemplatePath = path.resolve(path.join(__dirname, '..', '..'), absoluteTemplatePath.replace(/^\//, ''));
+    }
   }
 
   if (!fs.existsSync(absoluteTemplatePath)) {
-    // Try resolving relative to backend directory directly
-    const fallbackPath = path.resolve(path.join(__dirname, '..'), templateConfig.filePath.replace(/^\/?(backend\/)?/, ''));
+    // Final fallback - check if template exists in templates folder
+    const fallbackPath = path.join(process.cwd(), 'backend', 'uploads', 'templates', 'sales_v1.xlsx');
     if (fs.existsSync(fallbackPath)) {
       absoluteTemplatePath = fallbackPath;
+      console.log(`[TemplateEngine] Using fallback template path: ${absoluteTemplatePath}`);
     } else {
-      throw new Error(`Template Excel file not found on disk at: ${absoluteTemplatePath}`);
+      throw new Error(`Template Excel file not found on disk. Tried: ${templateConfig.filePath} and ${fallbackPath}`);
     }
   }
 
