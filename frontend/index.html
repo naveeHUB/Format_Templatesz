@@ -76,20 +76,74 @@
                 </div>
               </div>
               <div class="card-body p-4">
-                <!-- Template Selection -->
-                <div class="mb-4 bg-light p-3 rounded-2 border">
-                  <label for="templateSelect" class="form-label fw-bold d-flex justify-content-between align-items-center mb-2">
-                    <span><i class="bi bi-file-earmark-spreadsheet-fill text-primary me-2"></i>Active Excel Template</span>
-                    <button class="btn btn-sm btn-outline-primary py-1" type="button" data-bs-toggle="modal" data-bs-target="#templateModal">
-                      <i class="bi bi-gear-fill me-1"></i>Manage Templates
-                    </button>
-                  </label>
-                  <select id="templateSelect" class="form-select shadow-none">
-                    <!-- Dynamically populated -->
-                  </select>
-                  <div class="form-text text-muted small mt-1">
-                    The chosen template determines column mappings and formula propagation rules.
-                  </div>
+                
+<!-- Template Discovery -->
+<section class="results-section" id="resultsSection">
+
+    <div class="results-header d-flex justify-content-between align-items-center mb-3">
+        <h5 class="fw-bold mb-0">📋 Template Structure</h5>
+        <div class="sheet-selector">
+            <label for="sheetSelect" class="me-2">Worksheet:</label>
+            <select id="sheetSelect" class="form-select form-select-sm d-inline-block" style="width:200px;"></select>
+        </div>
+    </div>
+
+    <div class="row g-3 mb-4">
+        <div class="col-md-3"><div class="border rounded p-3 bg-light"><h6>📄 Template Name</h6><p id="templateName">-</p></div></div>
+        <div class="col-md-3"><div class="border rounded p-3 bg-light"><h6>📅 Detected</h6><p id="detectedAt">-</p></div></div>
+        <div class="col-md-3"><div class="border rounded p-3 bg-light"><h6>📊 Header Row</h6><p id="headerRow">-</p></div></div>
+        <div class="col-md-3"><div class="border rounded p-3 bg-light"><h6>📈 Data Start Row</h6><p id="dataStartRow">-</p></div></div>
+    </div>
+
+    <div class="mb-4">
+        <div class="d-flex justify-content-between align-items-center mb-3">
+            <h5 class="mb-0">🔍 Detected Fields</h5>
+            <button id="addFieldBtn" class="btn btn-secondary btn-sm">+ Add Custom Field</button>
+        </div>
+
+        <div class="table-responsive">
+            <table class="table table-bordered table-hover" id="fieldsTable">
+                <thead class="table-light">
+                    <tr>
+                        <th>Field Name</th>
+                        <th>Column</th>
+                        <th>Required</th>
+                        <th>Actions</th>
+                    </tr>
+                </thead>
+                <tbody id="fieldsTableBody"></tbody>
+            </table>
+        </div>
+    </div>
+
+    <div class="mb-4">
+        <h5>⚙️ Formula Fields</h5>
+        <div id="formulaFieldsContainer" class="border rounded p-3 bg-light">
+            <p class="text-muted mb-0">No formula fields detected</p>
+        </div>
+    </div>
+
+    <div class="mb-4">
+        <h5>📊 Summary Sections</h5>
+        <div id="summarySectionsContainer" class="border rounded p-3 bg-light">
+            <p class="text-muted mb-0">No summary sections detected</p>
+        </div>
+    </div>
+
+    <div class="d-flex gap-2">
+        <button id="confirmDiscoveryBtn" class="btn btn-success" disabled>
+            💾 Confirm Discovery (Phase 3)
+        </button>
+        <button id="resetBtn" class="btn btn-secondary">🔄 Reset</button>
+    </div>
+
+    <p class="text-muted small mt-3">
+        Note: Template saving will be available in Phase 3.
+        Editing fields is client-side only.
+    </p>
+</section>
+
+
                 </div>
 
                 <!-- Drop Zone -->
@@ -485,7 +539,28 @@
 
   <!-- Scripts -->
   <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>
-  <script src="js/ui.js"></script>
+  
+<!-- Edit Field Modal -->
+<div id="editModal" class="modal" style="display:none;">
+    <div class="modal-content">
+        <div class="modal-header">
+            <h3>Edit Field</h3>
+            <span class="modal-close">&times;</span>
+        </div>
+        <div class="modal-body">
+            <label>Field Name:</label>
+            <input type="text" id="editFieldName" class="form-control" placeholder="Enter field name">
+        </div>
+        <div class="modal-footer">
+            <button id="saveFieldBtn" class="btn btn-primary">Save</button>
+            <button id="cancelFieldBtn" class="btn btn-secondary">Cancel</button>
+        </div>
+    </div>
+</div>
+
+<script src="/js/discovery.js"></script>
+
+<script src="js/ui.js"></script>
   <script src="js/upload.js"></script>
   <script src="js/app.js"></script>
 </body>

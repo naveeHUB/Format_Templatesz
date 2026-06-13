@@ -109,7 +109,15 @@ const UI = (function () {
     if (cardCustomers) cardCustomers.textContent = formatNumber(totalCustomers || 0);
     if (cardSheet) cardSheet.textContent = sheetName || 'N/A';
   }
-
+// Save to registry button
+const saveToRegistryBtn = document.getElementById('saveToRegistryBtn');
+if (saveToRegistryBtn) {
+    saveToRegistryBtn.addEventListener('click', async () => {
+        if (currentTemplateModel) {
+            await saveToRegistry(currentTemplateModel);
+        }
+    });
+}
   function setValidationSummary({
     totalRows = 0,
     validRows = 0,

@@ -1,26 +1,93 @@
-[
-  {
-    "templateId": "sales_v1",
-    "name": "Standard Sales Plan Template",
-    "filePath": "backend/uploads/templates/sales_v1.xlsx",
-    "sheetName": "Sheet1",
-    "headerRow": 1,
-    "dataStartRow": 2,
-    "mapping": {
-      "CUSTOMER": "CUSTOMER",
-      "CUSTOMER DESC.": "CUSTOMER DESC.",
-      "ITEM": "ITEM",
-      "ITEM DESCRIPTION": "ITEM DESCRIPTION",
-      "Sales Plan Qty": "Sales Plan Qty",
-      "Sale Plan Value": "Sale Plan Value"
-    },
-    "summary": {
-      "enabled": true,
-      "sheetName": "Sheet1",
-      "customerHeader": "Customer",
-      "valueHeader": "Sum of Sale Plan Value",
-      "startCol": "W",
-      "startRow": 1
+{
+  "version": "1.0",
+  "lastUpdated": "2026-06-12T10:21:22.302Z",
+  "templates": [
+    {
+      "templateId": "1d09d50d-3bc0-45c0-8a0b-3e0802a89db8",
+      "templateName": "Sales Template",
+      "version": "1.0",
+      "approved": false,
+      "createdAt": "2026-06-12T10:18:37.778Z",
+      "updatedAt": "2026-06-12T10:21:22.302Z",
+      "sourceFile": "sales_v1.xlsx",
+      "mappingProfile": {
+        "profileId": "map_1781259682301",
+        "templateId": "1d09d50d-3bc0-45c0-8a0b-3e0802a89db8",
+        "createdAt": "2026-06-12T10:21:22.301Z",
+        "updatedAt": "2026-06-12T10:21:22.301Z",
+        "mappings": [
+          {
+            "sourceField": "Customer Name",
+            "targetField": "CUSTOMER",
+            "targetId": "f1",
+            "confidence": 95,
+            "required": false
+          },
+          {
+            "sourceField": "Part Number",
+            "targetField": "ITEM",
+            "targetId": "f2",
+            "confidence": 95,
+            "required": false
+          },
+          {
+            "sourceField": "Quantity",
+            "targetField": "Sales Plan Qty",
+            "targetId": "f3",
+            "confidence": 100,
+            "required": false,
+            "manualOverride": true
+          }
+        ],
+        "unmappedSourceFields": [],
+        "unmappedTemplateFields": [
+          "Sale Plan Value"
+        ],
+        "overallConfidence": 100,
+        "approved": false
+      },
+      "mappingApproved": true,
+      "mappingConfig": {
+        "CUSTOMER": "Customer Name",
+        "ITEM": "Part Number",
+        "Sales Plan Qty": "Quantity"
+      },
+      "sheets": [
+        {
+          "name": "Sheet1",
+          "headerRow": 1,
+          "dataStartRow": 2,
+          "fields": [
+            {
+              "id": "f1",
+              "name": "CUSTOMER",
+              "column": "A",
+              "required": false
+            },
+            {
+              "id": "f2",
+              "name": "ITEM",
+              "column": "B",
+              "required": false
+            },
+            {
+              "id": "f3",
+              "name": "Sales Plan Qty",
+              "column": "E",
+              "required": false
+            },
+            {
+              "id": "f4",
+              "name": "Sale Plan Value",
+              "column": "F",
+              "required": false
+            }
+          ],
+          "formulaFields": [],
+          "mergedCells": [],
+          "summarySections": []
+        }
+      ]
     }
-  }
-]
+  ]
+}

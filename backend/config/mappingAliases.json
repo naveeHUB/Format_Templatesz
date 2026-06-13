@@ -1,0 +1,60 @@
+{
+  "version": "1.0",
+  "aliases": {
+    "CUSTOMER": [
+      "customer",
+      "client",
+      "customer name",
+      "client name",
+      "customer desc",
+      "customer description",
+      "account",
+      "account name"
+    ],
+    "ITEM": [
+      "item",
+      "product",
+      "part number",
+      "item code",
+      "product code",
+      "sku",
+      "item description",
+      "product description",
+      "material",
+      "article"
+    ],
+    "Sales Plan Qty": [
+      "quantity",
+      "qty",
+      "sales plan qty",
+      "plan qty",
+      "forecast qty",
+      "units",
+      "volume",
+      "order quantity"
+    ],
+    "Sale Plan Value": [
+      "value",
+      "sale plan value",
+      "sales value",
+      "amount",
+      "total",
+      "revenue",
+      "price",
+      "total price",
+      "usd/eur value"
+    ],
+    "CUSTOMER DESC.": [
+      "customer description",
+      "customer details",
+      "client description",
+      "account details"
+    ],
+    "ITEM DESCRIPTION": [
+      "item description",
+      "product description",
+      "part description",
+      "details"
+    ]
+  }
+}
