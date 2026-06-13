@@ -1,21 +1,21 @@
 {
-  "name": "sales-plan-page",
-  "version": "1.0.0",
-  "description": "Modern enterprise dashboard for sales plan Excel processing",
+  "name": "excel-transformation-engine",
+  "version": "2.0.0",
+  "description": "Universal Excel Template Transformation Engine",
   "main": "backend/server.js",
   "scripts": {
     "start": "node backend/server.js",
     "dev": "nodemon backend/server.js"
   },
   "dependencies": {
+    "express": "^4.18.2",
     "cors": "^2.8.5",
-    "exceljs": "^3.4.0",
-    "express": "^4.18.4",
     "multer": "^1.4.5-lts.1",
-    "uuid": "^14.0.0",
-    "xlsx": "^0.18.5"
+    "exceljs": "^4.4.0",
+    "string-similarity": "^4.0.4",
+    "uuid": "^9.0.0"
   },
-  "engines": {
-    "node": ">=16"
+  "devDependencies": {
+    "nodemon": "^3.0.1"
   }
 }

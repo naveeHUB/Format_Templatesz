@@ -1,0 +1,68 @@
+[
+  {
+    "id": 1,
+    "name": "Monthly Sales Plan",
+    "category": "sales",
+    "industry": "retail",
+    "description": "Standard monthly sales tracking template with KPIs and forecasting",
+    "discoveredHeaders": [],
+    "createdAt": "2026-06-13T08:47:18.848Z",
+    "updatedAt": "2026-06-13T08:47:18.848Z",
+    "version": 1
+  },
+  {
+    "id": 2,
+    "name": "Marketing Campaign Tracker",
+    "category": "marketing",
+    "industry": "tech",
+    "description": "Campaign planning, budget tracking, and ROI calculator",
+    "discoveredHeaders": [],
+    "createdAt": "2026-06-13T08:47:18.848Z",
+    "updatedAt": "2026-06-13T08:47:18.848Z",
+    "version": 1
+  },
+  {
+    "id": 3,
+    "name": "Financial Forecast",
+    "category": "finance",
+    "industry": "manufacturing",
+    "description": "Quarterly financial projections with expense analysis",
+    "discoveredHeaders": [],
+    "createdAt": "2026-06-13T08:47:18.848Z",
+    "updatedAt": "2026-06-13T08:47:18.848Z",
+    "version": 1
+  },
+  {
+    "id": 4,
+    "name": "June sales plan 2026",
+    "category": "DEMO",
+    "industry": "SALES",
+    "description": "SALES PLAN",
+    "discoveredHeaders": [
+      "DOCUMENT NO.",
+      "DOC. DATE",
+      "UNIT",
+      "UNIT DESCRIPTION",
+      "REF. UNIT",
+      "REF. UNIT DESCRIPTION",
+      "CUSTOMER",
+      "CUSTOMER DESC.",
+      "ITEM",
+      "REV.",
+      "ITEM DESCRIPTION",
+      "SALES UOM",
+      "SALES PRICE",
+      "CURRENCY",
+      "USD/EUR value",
+      "Total price",
+      "TAX SET DESCRIPTION",
+      "EFF. FROM",
+      "EFF. TO",
+      "Sales Plan Qty",
+      "Sale Plan Value"
+    ],
+    "createdAt": "2026-06-13T09:05:33.034Z",
+    "updatedAt": "2026-06-13T09:05:33.035Z",
+    "version": 1
+  }
+]

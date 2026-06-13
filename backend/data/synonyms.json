@@ -1,0 +1,41 @@
+{
+  "Customer Name": [
+    "Customer",
+    "Client",
+    "Client Name",
+    "Customer ID"
+  ],
+  "Part Number": [
+    "Part No",
+    "Part Code",
+    "Material Code",
+    "SKU"
+  ],
+  "Quantity": [
+    "Qty",
+    "QTY",
+    "Quantity",
+    "Count"
+  ],
+  "Amount": [
+    "Value",
+    "Total",
+    "Amount USD",
+    "Price"
+  ],
+  "Date": [
+    "Date",
+    "Transaction Date",
+    "Order Date"
+  ],
+  "Product": [
+    "Product Name",
+    "Item",
+    "Description"
+  ],
+  "Region": [
+    "Area",
+    "Territory",
+    "Location"
+  ]
+}

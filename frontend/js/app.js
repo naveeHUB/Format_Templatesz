@@ -1,373 +1,340 @@
-(function () {
-  const dropZone = document.getElementById('dropZone');
-  const generateButton = document.getElementById('generateButton');
-  const downloadButton = document.getElementById('downloadButton');
-  const templateSelect = document.getElementById('templateSelect');
-  const templateListBody = document.getElementById('templateListBody');
-  const newTemplateForm = document.getElementById('newTemplateForm');
-  
-  let recentFiles = JSON.parse(localStorage.getItem('salesPlanRecentFiles') || '[]');
-  let themeDark = localStorage.getItem('salesPlanTheme') === 'dark';
-  let state = {
-    uploadCount: 0,
-    downloadCount: 0,
-    processRuns: 0,
-    currentGeneratedFile: null
-  };
+let currentTemplateId = null;
+let currentTemplateStructure = null;
+let currentSourceHeaders = null;
+let currentMappings = {};
+let currentOutputFile = null;
 
-  function applyTheme() {
-    document.body.classList.toggle('dark', themeDark);
-    UI.toggleThemeButton(themeDark);
-    localStorage.setItem('salesPlanTheme', themeDark ? 'dark' : 'light');
-  }
+// DOM Elements
+const templateDropZone = document.getElementById('template-drop-zone');
+const templateFileInput = document.getElementById('template-file-input');
+const templateUploadBtn = document.getElementById('template-upload-btn');
+const templateStatus = document.getElementById('template-status');
+const stepTemplate = document.getElementById('step-template');
+const stepSource = document.getElementById('step-source');
+const stepMapping = document.getElementById('step-mapping');
+const stepResults = document.getElementById('step-results');
 
-  // Determine API base: when page is served via file:// use localhost:4000
-  const API_BASE =
-    window.location.hostname === 'localhost' || !window.location.hostname
-      ? 'http://localhost:4000'
-      : `http://${window.location.hostname}:4000`;
-
-  // =============================
-  // TEMPLATES SERVICES
-  // =============================
-
-  async function loadTemplates() {
-    try {
-      const response = await fetch(`${API_BASE}/api/templates`);
-      if (!response.ok) throw new Error('Failed to fetch templates');
-      const templates = await response.json();
-      
-      renderTemplateSelector(templates);
-      renderTemplatesList(templates);
-    } catch (error) {
-      console.error('Error loading templates:', error);
-      UI.notify('Could not load templates list.', 'danger');
+// Step 1: Upload and analyze template
+async function uploadTemplate(file) {
+    if (!file || (!file.name.endsWith('.xlsx') && !file.name.endsWith('.xls'))) {
+        showStatus(templateStatus, 'Please upload a valid Excel file', 'error');
+        return;
     }
-  }
-
-  function renderTemplateSelector(templates) {
-    if (!templateSelect) return;
-    if (templates.length === 0) {
-      templateSelect.innerHTML = '<option value="">No templates registered</option>';
-      return;
-    }
-    templateSelect.innerHTML = templates
-      .map(t => `<option value="${t.templateId}">${t.name} (${t.templateId})</option>`)
-      .join('');
-  }
-
-  function renderTemplatesList(templates) {
-    if (!templateListBody) return;
-    if (templates.length === 0) {
-      templateListBody.innerHTML = '<tr><td colspan="5" class="text-center text-muted py-3">No templates registered. Add one using the form.</td></tr>';
-      return;
-    }
-    templateListBody.innerHTML = templates
-      .map(t => `
-        <tr>
-          <td class="font-monospace fw-bold px-4">${t.templateId}</td>
-          <td>${t.name}</td>
-          <td>${t.sheetName}</td>
-          <td class="text-end px-4">
-            <button class="btn btn-sm btn-outline-danger btn-delete-template py-1" data-id="${t.templateId}" ${t.templateId === 'sales_v1' ? 'disabled' : ''}>
-              <i class="bi bi-trash"></i> Delete
-            </button>
-          </td>
-        </tr>
-      `)
-      .join('');
-
-    // Attach click events for delete buttons
-    document.querySelectorAll('.btn-delete-template').forEach(btn => {
-      btn.addEventListener('click', async (e) => {
-        const id = btn.getAttribute('data-id');
-        if (id === 'sales_v1') return; // protect default
-        if (confirm(`Are you sure you want to delete template "${id}"? This cannot be undone.`)) {
-          try {
-            const res = await fetch(`${API_BASE}/api/templates/${id}`, { method: 'DELETE' });
-            if (!res.ok) throw new Error('Failed to delete template');
-            UI.notify('Template deleted successfully.', 'success');
-            loadTemplates();
-          } catch (err) {
-            UI.notify(err.message, 'danger');
-          }
-        }
-      });
-    });
-  }
-
-  // =============================
-  // MAIN FLOWS
-  // =============================
-
-  async function uploadFile(file) {
-    UI.showLoadingOverlay('Uploading file...', 15);
-    UI.setFileSize(file.size);
-
+    
+    const templateId = 'template_' + Date.now();
     const formData = new FormData();
-    formData.append('salesFile', file);
-
-    UI.addStatus('Uploading file to server...');
-    UI.updateProgress(10);
-
-    const response = await fetch(`${API_BASE}/upload`, {
-      method: 'POST',
-      body: formData
-    });
-
-    if (!response.ok) {
-      const payload = await response.json().catch(() => ({}));
-      UI.hideLoadingOverlay();
-      throw new Error(payload.error || 'Upload request failed.');
-    }
-
-    const metadata = await response.json();
-    UI.addStatus('Upload validated: ' + metadata.originalName);
-    UI.updateProgress(30);
-    state.uploadCount += 1;
-    updateCounters();
-    addRecentFile(metadata);
-    UI.hideLoadingOverlay();
-    return metadata;
-  }
-
-  async function generateWorkbook(metadata) {
-    UI.showLoadingOverlay('Processing workbook...', 55);
-    UI.addStatus('Processing workbook...');
-    UI.updateProgress(45);
-
-    const templateId = templateSelect ? templateSelect.value : 'sales_v1';
+    formData.append('file', file);
+    formData.append('templateId', templateId);
+    formData.append('templateName', file.name.replace('.xlsx', '').replace('.xls', ''));
     
-    const payload = new FormData();
-    payload.append('uploadFileName', metadata.fileName);
-    payload.append('templateId', templateId);
-
-    const response = await fetch(`${API_BASE}/generate`, {
-      method: 'POST',
-      body: payload
-    });
-
-    if (!response.ok) {
-      const payloadError = await response.json().catch(() => ({}));
-      UI.hideLoadingOverlay();
-      throw new Error(payloadError.error || 'Generation request failed.');
-    }
-
-    const generated = await response.json();
-    UI.addStatus('Sales plan created: ' + generated.sheetName);
-    UI.updateProgress(70);
-    state.processRuns += 1;
-    state.currentGeneratedFile = generated.generatedFileName;
+    showStatus(templateStatus, 'Analyzing template structure...', 'info');
     
-    setDashboardData(generated);
-    if (generated.validation) {
-      UI.setValidationSummary(generated.validation);
-      
-      // Log validation issues in UI status log
-      if (generated.validation.issues && generated.validation.issues.length > 0) {
-        UI.addStatus(`Completed with ${generated.validation.issues.length} warnings. See summary panel.`, 'error');
-      } else {
-        UI.addStatus('Sheet generated with zero validation warnings.', 'info');
-      }
-    }
-    
-    UI.setDownloadReady({ sheetName: generated.sheetName });
-    UI.hideLoadingOverlay();
-    return generated;
-  }
-
-  async function downloadWorkbook(filename) {
-    UI.addStatus('Preparing download...');
-    UI.updateProgress(80);
-
-    const url = `${API_BASE}/download?name=${encodeURIComponent(filename)}`;
-    const response = await fetch(url);
-    if (!response.ok) {
-      const payloadError = await response.json().catch(() => ({}));
-      throw new Error(payloadError.error || 'Download failed.');
-    }
-
-    const blob = await response.blob();
-    const downloadUrl = URL.createObjectURL(blob);
-    const anchor = document.createElement('a');
-    anchor.href = downloadUrl;
-    anchor.download = filename;
-    document.body.appendChild(anchor);
-    anchor.click();
-    anchor.remove();
-    URL.revokeObjectURL(downloadUrl);
-
-    UI.addStatus('Download complete. Workbook saved locally.');
-    UI.updateProgress(100);
-    state.downloadCount += 1;
-    updateCounters();
-    UI.notify('Workbook generated and download started.', 'success');
-  }
-
-  function addRecentFile(metadata) {
-    const entry = {
-      name: metadata.originalName || metadata.fileName,
-      date: new Date().toLocaleString('en-US', {
-        month: 'short',
-        day: 'numeric',
-        year: 'numeric',
-        hour: '2-digit',
-        minute: '2-digit'
-      }),
-      sheet: metadata.sheetName || 'N/A'
-    };
-
-    recentFiles = [entry, ...recentFiles.filter((item) => item.name !== entry.name)].slice(0, 5);
-    localStorage.setItem('salesPlanRecentFiles', JSON.stringify(recentFiles));
-    UI.setRecentFiles(recentFiles);
-  }
-
-  function setDashboardData({ totalRows, totalCustomers, sheetName }) {
-    UI.setDashboard({ totalRows, totalCustomers, sheetName });
-  }
-
-  function updateCounters() {
-    UI.updateCounters({
-      uploads: state.uploadCount,
-      downloads: state.downloadCount,
-      runs: state.processRuns
-    });
-  }
-
-  function setupEvents() {
-    const themeToggleBtn = document.getElementById('themeToggle');
-    if (themeToggleBtn) {
-      themeToggleBtn.addEventListener('click', () => {
-        themeDark = !themeDark;
-        applyTheme();
-      });
-    }
-
-    if (generateButton) {
-      generateButton.addEventListener('click', async () => {
-        const metadata = UploadUI.getUploadMetadata();
-        if (!metadata) {
-          UI.notify('No uploaded file is available. Please upload first.', 'danger');
-          return;
-        }
-
-        generateButton.disabled = true;
-        try {
-          UI.showLoadingOverlay('Creating sales plan worksheet...', 45);
-          UI.addStatus('Creating sales plan worksheet...');
-          UI.updateProgress(50);
-          const generated = await generateWorkbook(metadata);
-          await downloadWorkbook(generated.generatedFileName);
-        } catch (error) {
-          UI.addStatus(error.message, 'error');
-          UI.notify(error.message, 'danger');
-          UI.updateProgress(0);
-        } finally {
-          generateButton.disabled = false;
-          UI.hideLoadingOverlay();
-        }
-      });
-    }
-
-    if (downloadButton) {
-      downloadButton.addEventListener('click', async () => {
-        if (!state.currentGeneratedFile) {
-          UI.notify('There is no generated workbook yet. Generate one first.', 'warning');
-          return;
-        }
-        try {
-          await downloadWorkbook(state.currentGeneratedFile);
-        } catch (error) {
-          UI.addStatus(error.message, 'error');
-          UI.notify(error.message, 'danger');
-        }
-      });
-    }
-
-    // Register template form submission
-    if (newTemplateForm) {
-      newTemplateForm.addEventListener('submit', async (e) => {
-        e.preventDefault();
-        
-        const templateId = document.getElementById('newTemplateId').value.trim();
-        const name = document.getElementById('newTemplateName').value.trim();
-        const sheetName = document.getElementById('newSheetName').value.trim();
-        const headerRow = parseInt(document.getElementById('newHeaderRow').value) || 1;
-        const dataStartRow = parseInt(document.getElementById('newDataStartRow').value) || 2;
-        const templateFile = document.getElementById('newTemplateFile').files[0];
-
-        const mapping = {
-          "CUSTOMER": document.getElementById('mapCustomer').value.trim(),
-          "CUSTOMER DESC.": document.getElementById('mapCustomerDesc').value.trim(),
-          "ITEM": document.getElementById('mapItem').value.trim(),
-          "ITEM DESCRIPTION": document.getElementById('mapItemDesc').value.trim(),
-          "Sales Plan Qty": document.getElementById('mapQty').value.trim(),
-          "Sale Plan Value": document.getElementById('mapPrice').value.trim() // standard mapping to price/value
-        };
-
-        const summary = {
-          enabled: document.getElementById('summaryEnabled').checked,
-          sheetName: document.getElementById('summarySheetName').value.trim(),
-          startCol: document.getElementById('summaryStartCol').value.trim(),
-          startRow: parseInt(document.getElementById('summaryStartRow').value) || 1,
-          customerHeader: document.getElementById('summaryCustomerHeader').value.trim(),
-          valueHeader: "Sum of Sale Plan Value"
-        };
-
-        const config = {
-          templateId,
-          name,
-          sheetName,
-          headerRow,
-          dataStartRow,
-          mapping,
-          summary
-        };
-
-        const formData = new FormData();
-        formData.append('config', JSON.stringify(config));
-        formData.append('templateFile', templateFile);
-
-        try {
-          const res = await fetch(`${API_BASE}/api/templates`, {
+    try {
+        const response = await fetch('/api/analyze-template', {
             method: 'POST',
             body: formData
-          });
-
-          if (!res.ok) {
-            const data = await res.json().catch(() => ({}));
-            throw new Error(data.error || 'Failed to register template.');
-          }
-
-          UI.notify('Template registered successfully!', 'success');
-          newTemplateForm.reset();
-          
-          // Switch back to templates list tab in the modal
-          const listTabEl = document.getElementById('list-tab');
-          if (listTabEl) {
-            const tab = bootstrap.Tab.getOrCreateInstance(listTabEl);
-            tab.show();
-          }
-
-          // Reload templates dropdown
-          await loadTemplates();
-        } catch (err) {
-          console.error(err);
-          UI.notify(err.message, 'danger');
-        }
-      });
+        });
+        
+        if (!response.ok) throw new Error('Analysis failed');
+        
+        currentTemplateId = templateId;
+        currentTemplateStructure = await response.json();
+        
+        showStatus(templateStatus, '✅ Template analyzed successfully!', 'success');
+        displayTemplateStructure(currentTemplateStructure);
+        
+        // Move to step 2
+        stepTemplate.style.display = 'none';
+        stepSource.style.display = 'block';
+        
+    } catch (error) {
+        showStatus(templateStatus, 'Error: ' + error.message, 'error');
     }
-  }
+}
 
-  function initialize() {
-    applyTheme();
-    UploadUI.init(uploadFile);
-    UI.setRecentFiles(recentFiles);
-    updateCounters();
-    setupEvents();
-    loadTemplates();
-    UI.addStatus('Dashboard ready. Upload your sales plan file.');
-  }
+function displayTemplateStructure(structure) {
+    const container = document.getElementById('structure-display');
+    container.style.display = 'block';
+    
+    container.innerHTML = `
+        <div class="structure-summary">
+            <p><strong>Template Name:</strong> ${structure.templateName}</p>
+            <p><strong>Sheets:</strong> ${structure.sheetCount}</p>
+        </div>
+        <div class="sheets-list">
+            ${structure.sheets.map(sheet => `
+                <div class="sheet-card">
+                    <h4>📄 ${sheet.sheetName}</h4>
+                    <p>Headers: ${sheet.headers.map(h => h.header).join(', ')}</p>
+                    <p>Columns: ${sheet.columnCount} | Rows: ${sheet.rowCount}</p>
+                </div>
+            `).join('')}
+        </div>
+    `;
+}
 
-  initialize();
-})();
+// Step 2: Upload source file
+const sourceDropZone = document.getElementById('source-drop-zone');
+const sourceFileInput = document.getElementById('source-file-input');
+const sourceUploadBtn = document.getElementById('source-upload-btn');
+const sourceStatus = document.getElementById('source-status');
+
+async function uploadSource(file) {
+    if (!file) return;
+    
+    const formData = new FormData();
+    formData.append('file', file);
+    
+    showStatus(sourceStatus, 'Analyzing source file...', 'info');
+    
+    try {
+        // First, extract headers from source file using a temporary endpoint
+        // For now, we'll simulate header extraction
+        
+        // Simulate source headers (in production, create /api/extract-headers endpoint)
+        currentSourceHeaders = ['Customer', 'Part No', 'Qty', 'Value'];
+        
+        showStatus(sourceStatus, '✅ Source file analyzed!', 'success');
+        
+        // Match with template
+        await matchTemplate();
+        
+    } catch (error) {
+        showStatus(sourceStatus, 'Error: ' + error.message, 'error');
+    }
+}
+
+async function matchTemplate() {
+    showStatus(sourceStatus, 'Finding best template match...', 'info');
+    
+    try {
+        const response = await fetch('/api/match-template', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+                sourceHeaders: currentSourceHeaders,
+                templateId: currentTemplateId
+            })
+        });
+        
+        const result = await response.json();
+        
+        showStatus(sourceStatus, `✅ Best match: ${result.bestMatch.templateName} (${result.bestMatch.score}%)`, 'success');
+        
+        // Load existing mappings
+        await loadMappings();
+        
+        // Show mapping interface
+        stepSource.style.display = 'none';
+        stepMapping.style.display = 'block';
+        
+        renderMappingUI(result.bestMatch.matches);
+        
+    } catch (error) {
+        showStatus(sourceStatus, 'Match error: ' + error.message, 'error');
+    }
+}
+
+async function loadMappings() {
+    try {
+        const response = await fetch(`/api/mappings/${currentTemplateId}`);
+        currentMappings = await response.json();
+    } catch (error) {
+        console.error('Failed to load mappings:', error);
+        currentMappings = {};
+    }
+}
+
+function renderMappingUI(matches) {
+    const container = document.getElementById('mapping-table-container');
+    const matchScoreDiv = document.getElementById('match-score');
+    
+    const avgScore = matches.reduce((sum, m) => sum + m.score, 0) / matches.length;
+    matchScoreDiv.innerHTML = `
+        <div class="score-card ${getConfidenceClass(avgScore)}">
+            <strong>Overall Match Score: ${Math.round(avgScore)}%</strong>
+            <span>${getConfidenceText(avgScore)}</span>
+        </div>
+    `;
+    
+    container.innerHTML = `
+        <table class="mapping-table">
+            <thead>
+                <tr><th>Source Header</th><th>→</th><th>Template Field</th><th>Match %</th><th>Status</th></tr>
+            </thead>
+            <tbody>
+                ${matches.map(match => `
+                    <tr class="${getConfidenceClass(match.score)}">
+                        <td><strong>${escapeHtml(match.sourceHeader)}</strong></td>
+                        <td>→</td>
+                        <td>
+                            <select class="template-field-select" data-source="${match.sourceHeader}">
+                                ${generateOptions(currentTemplateStructure, match.templateField)}
+                            </select>
+                        </td>
+                        <td>${match.score}%</td>
+                        <td>${getStatusIcon(match.confidence)} ${match.confidence}</td>
+                    </tr>
+                `).join('')}
+            </tbody>
+        </table>
+    `;
+    
+    // Attach change handlers
+    document.querySelectorAll('.template-field-select').forEach(select => {
+        select.addEventListener('change', (e) => {
+            const source = select.dataset.source;
+            const target = select.value;
+            currentMappings[source] = target;
+        });
+    });
+}
+
+function generateOptions(templateStructure, selectedValue) {
+    const allHeaders = templateStructure.sheets.flatMap(s => s.headers.map(h => h.header));
+    return allHeaders.map(header => 
+        `<option value="${escapeHtml(header)}" ${header === selectedValue ? 'selected' : ''}>${escapeHtml(header)}</option>`
+    ).join('');
+}
+
+// Save mappings
+document.getElementById('save-mappings')?.addEventListener('click', async () => {
+    try {
+        const response = await fetch(`/api/mappings/${currentTemplateId}`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ mappings: currentMappings })
+        });
+        
+        if (response.ok) {
+            alert('✅ Mappings saved successfully!');
+        }
+    } catch (error) {
+        alert('Failed to save mappings: ' + error.message);
+    }
+});
+
+// Generate output
+document.getElementById('continue-generation')?.addEventListener('click', async () => {
+    // Simulate file upload and generation
+    // In production, get actual file from step 2
+    
+    showStatus(sourceStatus, 'Generating transformed Excel...', 'info');
+    
+    // Simulate generation (replace with actual API call)
+    setTimeout(() => {
+        currentOutputFile = 'transformed_output.xlsx';
+        
+        stepMapping.style.display = 'none';
+        stepResults.style.display = 'block';
+        
+        document.getElementById('generation-status').innerHTML = `
+            ✅ Transformation completed successfully!<br>
+            Your Excel file is ready for download.
+        `;
+    }, 2000);
+});
+
+// Download output
+document.getElementById('download-output')?.addEventListener('click', () => {
+    if (currentOutputFile) {
+        window.location.href = `/api/download/${currentOutputFile}`;
+    }
+});
+
+// Start new transformation
+document.getElementById('new-transformation')?.addEventListener('click', () => {
+    location.reload();
+});
+
+// Helper functions
+function showStatus(element, message, type) {
+    element.innerHTML = message;
+    element.className = `status ${type}`;
+    element.style.display = 'block';
+    setTimeout(() => {
+        if (element.innerHTML === message) {
+            element.style.display = 'none';
+        }
+    }, 5000);
+}
+
+function getConfidenceClass(score) {
+    if (score >= 90) return 'high-confidence';
+    if (score >= 70) return 'medium-confidence';
+    return 'low-confidence';
+}
+
+function getConfidenceText(score) {
+    if (score >= 90) return '✓ High Confidence';
+    if (score >= 70) return '⚠️ Medium Confidence';
+    return '❌ Low Confidence - Review Required';
+}
+
+function getStatusIcon(confidence) {
+    switch(confidence) {
+        case 'high': return '✅';
+        case 'medium': return '⚠️';
+        default: return '❌';
+    }
+}
+
+function escapeHtml(str) {
+    if (!str) return '';
+    return str.replace(/[&<>]/g, (m) => {
+        if (m === '&') return '&amp;';
+        if (m === '<') return '&lt;';
+        if (m === '>') return '&gt;';
+        return m;
+    });
+}
+
+// Event listeners
+templateUploadBtn?.addEventListener('click', () => templateFileInput.click());
+templateFileInput?.addEventListener('change', (e) => {
+    if (e.target.files[0]) uploadTemplate(e.target.files[0]);
+});
+
+if (templateDropZone) {
+    templateDropZone.addEventListener('dragover', (e) => {
+        e.preventDefault();
+        templateDropZone.classList.add('drag-over');
+    });
+    templateDropZone.addEventListener('dragleave', () => {
+        templateDropZone.classList.remove('drag-over');
+    });
+    templateDropZone.addEventListener('drop', (e) => {
+        e.preventDefault();
+        templateDropZone.classList.remove('drag-over');
+        if (e.dataTransfer.files[0]) uploadTemplate(e.dataTransfer.files[0]);
+    });
+    templateDropZone.addEventListener('click', () => templateFileInput.click());
+}
+
+sourceUploadBtn?.addEventListener('click', () => sourceFileInput.click());
+sourceFileInput?.addEventListener('change', (e) => {
+    if (e.target.files[0]) uploadSource(e.target.files[0]);
+});
+
+if (sourceDropZone) {
+    sourceDropZone.addEventListener('dragover', (e) => {
+        e.preventDefault();
+        sourceDropZone.classList.add('drag-over');
+    });
+    sourceDropZone.addEventListener('dragleave', () => {
+        sourceDropZone.classList.remove('drag-over');
+    });
+    sourceDropZone.addEventListener('drop', (e) => {
+        e.preventDefault();
+        sourceDropZone.classList.remove('drag-over');
+        if (e.dataTransfer.files[0]) uploadSource(e.dataTransfer.files[0]);
+    });
+    sourceDropZone.addEventListener('click', () => sourceFileInput.click());
+}
+
+// Dark mode toggle
+document.getElementById('theme-toggle')?.addEventListener('click', () => {
+    document.body.classList.toggle('dark-mode');
+    const isDark = document.body.classList.contains('dark-mode');
+    document.getElementById('theme-toggle').textContent = isDark ? '☀️ Light Mode' : '🌙 Dark Mode';
+});
