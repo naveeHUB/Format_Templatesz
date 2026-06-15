@@ -7,60 +7,192 @@
     <link rel="stylesheet" href="css/style.css">
 </head>
 <body>
-    <div class="app-container">
-        <header class="header">
-            <h1>🔄 Universal Excel Transformation Engine</h1>
-            <button id="theme-toggle" class="theme-toggle">🌙 Dark Mode</button>
-        </header>
-        
-        <main class="main-content">
-            <!-- Step 1: Upload Template -->
-            <section class="step-section" id="step-template">
-                <h2>📁 Step 1: Upload Excel Template</h2>
-                <div id="template-drop-zone" class="drop-zone">
-                    <p>Drag & drop template Excel file (.xlsx, .xls)</p>
-                    <p>or</p>
-                    <button id="template-upload-btn" class="upload-btn">Select Template</button>
-                    <input type="file" id="template-file-input" accept=".xlsx,.xls" style="display: none;">
+    <!-- Toast Notifications Container -->
+    <div id="toast-container" class="toast-container"></div>
+    
+    <!-- Collapsible Sidebar Layout -->
+    <div class="app-layout">
+        <aside class="sidebar" id="sidebar">
+            <div class="sidebar-header">
+                <span class="logo">🔄 ExcelEngine</span>
+                <button id="sidebar-toggle" class="sidebar-toggle-btn">◀</button>
+            </div>
+            <nav class="sidebar-nav">
+                <a class="nav-item active" id="nav-step-1" data-step="1">
+                    <span class="icon">📁</span> <span class="label">Upload Template</span>
+                </a>
+                <a class="nav-item" id="nav-step-2" data-step="2">
+                    <span class="icon">📂</span> <span class="label">Upload Source</span>
+                </a>
+                <a class="nav-item" id="nav-step-3" data-step="3">
+                    <span class="icon">🎯</span> <span class="label">Auto Match</span>
+                </a>
+                <a class="nav-item" id="nav-step-4" data-step="4">
+                    <span class="icon">🔗</span> <span class="label">Column Mapping</span>
+                </a>
+                <a class="nav-item" id="nav-step-5" data-step="5">
+                    <span class="icon">📋</span> <span class="label">Preview</span>
+                </a>
+                <a class="nav-item" id="nav-step-6" data-step="6">
+                    <span class="icon">✅</span> <span class="label">Download</span>
+                </a>
+            </nav>
+        </aside>
+
+        <!-- Main Layout wrapper -->
+        <div class="main-layout">
+            <!-- App Header -->
+            <header class="app-header">
+                <div class="header-left">
+                    <button id="hamburger-menu" class="hamburger-btn">☰</button>
+                    <h2>Universal Excel Transformation Engine</h2>
                 </div>
-                <div id="template-status" class="status"></div>
-                <div id="template-structure" style="display: none; margin-top: 20px;">
-                    <h3>📊 Template Structure</h3>
-                    <div id="structure-display"></div>
+                <div class="header-right">
+                    <button id="theme-toggle" class="theme-toggle">🌙 Dark Mode</button>
+                </div>
+            </header>
+
+            <!-- Dashboard Statistics -->
+            <section class="dashboard-stats">
+                <div class="stat-card">
+                    <div class="stat-icon">📁</div>
+                    <div class="stat-content">
+                        <h3>Files Processed</h3>
+                        <div class="stat-number">45</div>
+                        <span class="stat-trend trend-up">↑ +12% this week</span>
+                    </div>
+                </div>
+                <div class="stat-card">
+                    <div class="stat-icon">📋</div>
+                    <div class="stat-content">
+                        <h3>Templates Registered</h3>
+                        <div class="stat-number">12</div>
+                        <span class="stat-trend trend-down">↓ -2% this week</span>
+                    </div>
+                </div>
+                <div class="stat-card">
+                    <div class="stat-icon">✅</div>
+                    <div class="stat-content">
+                        <h3>Completed Runs</h3>
+                        <div class="stat-number">89</div>
+                        <span class="stat-trend trend-up">↑ +23% this week</span>
+                    </div>
+                </div>
+                <div class="stat-card">
+                    <div class="stat-icon">⭐</div>
+                    <div class="stat-content">
+                        <h3>Match Accuracy</h3>
+                        <div class="stat-number">95%</div>
+                        <span class="stat-trend trend-up">↑ +5% accuracy</span>
+                    </div>
                 </div>
             </section>
-            
-            <!-- Step 2: Upload Source File -->
-            <section class="step-section" id="step-source" style="display: none;">
-                <h2>📂 Step 2: Upload Source Excel File</h2>
-                <div id="source-drop-zone" class="drop-zone">
-                    <p>Drag & drop source Excel file (.xlsx, .xls)</p>
-                    <p>or</p>
-                    <button id="source-upload-btn" class="upload-btn">Select Source File</button>
-                    <input type="file" id="source-file-input" accept=".xlsx,.xls" style="display: none;">
+
+            <!-- Step Progress Indicator -->
+            <div class="stepper-container">
+                <div class="stepper-progress-bar">
+                    <div class="stepper-progress-fill" id="stepper-progress-fill" style="width: 0%;"></div>
                 </div>
-                <div id="source-status" class="status"></div>
-            </section>
-            
-            <!-- Step 3: Mapping Interface -->
-            <section class="step-section" id="step-mapping" style="display: none;">
-                <h2>🔗 Step 3: Column Mapping</h2>
-                <div id="match-score" class="match-score"></div>
-                <div id="mapping-table-container"></div>
-                <div class="action-buttons">
-                    <button id="save-mappings" class="primary-btn">💾 Save Mappings</button>
-                    <button id="continue-generation" class="success-btn">🚀 Generate Output</button>
+                <div class="stepper-steps">
+                    <div class="step-node active" id="step-node-1" data-step="1">
+                        <div class="step-circle">1</div>
+                        <div class="step-label">Upload Template</div>
+                    </div>
+                    <div class="step-node" id="step-node-2" data-step="2">
+                        <div class="step-circle">2</div>
+                        <div class="step-label">Upload Source</div>
+                    </div>
+                    <div class="step-node" id="step-node-3" data-step="3">
+                        <div class="step-circle">3</div>
+                        <div class="step-label">Auto Match</div>
+                    </div>
+                    <div class="step-node" id="step-node-4" data-step="4">
+                        <div class="step-circle">4</div>
+                        <div class="step-label">Column Mapping</div>
+                    </div>
+                    <div class="step-node" id="step-node-5" data-step="5">
+                        <div class="step-circle">5</div>
+                        <div class="step-label">Preview</div>
+                    </div>
+                    <div class="step-node" id="step-node-6" data-step="6">
+                        <div class="step-circle">6</div>
+                        <div class="step-label">Download</div>
+                    </div>
                 </div>
-            </section>
-            
-            <!-- Step 4: Generation Results -->
-            <section class="step-section" id="step-results" style="display: none;">
-                <h2>✅ Step 4: Generation Complete</h2>
-                <div id="generation-status" class="success-message"></div>
-                <button id="download-output" class="primary-btn">📥 Download Generated Excel</button>
-                <button id="new-transformation" class="secondary-btn">🔄 Start New Transformation</button>
-            </section>
-        </main>
+            </div>
+
+            <!-- Page Main Content Area -->
+            <main class="main-content">
+                <!-- Step 1: Upload and Analyze Template -->
+                <section class="step-section" id="step-template">
+                    <h2>📁 Step 1: Upload Excel Template</h2>
+                    <p>Select or drag-and-drop the reference Excel file that defines your target spreadsheet structure.</p>
+                    <div id="template-drop-zone" class="drop-zone">
+                        <span class="drop-zone-icon">🗂️</span>
+                        <p>Drag & drop template Excel file (.xlsx, .xls) here</p>
+                        <p>or</p>
+                        <button id="template-upload-btn" class="primary-btn">Select Template</button>
+                        <input type="file" id="template-file-input" accept=".xlsx,.xls" style="display: none;">
+                    </div>
+                    <div id="template-status" class="status"></div>
+                    <div id="template-structure" style="display: none; margin-top: 20px;">
+                        <h3>📊 Template Structure Details</h3>
+                        <div id="structure-display"></div>
+                    </div>
+                </section>
+                
+                <!-- Step 2: Upload Source File -->
+                <section class="step-section" id="step-source" style="display: none;">
+                    <h2>📂 Step 2: Upload Source Excel File</h2>
+                    <p>Select or drag-and-drop the raw data workbook that needs to be transformed.</p>
+                    <div id="source-drop-zone" class="drop-zone">
+                        <span class="drop-zone-icon">📂</span>
+                        <p>Drag & drop source Excel file (.xlsx, .xls) here</p>
+                        <p>or</p>
+                        <button id="source-upload-btn" class="primary-btn">Select Source File</button>
+                        <input type="file" id="source-file-input" accept=".xlsx,.xls" style="display: none;">
+                    </div>
+                    <div id="source-status" class="status"></div>
+                </section>
+                
+                <!-- Step 3: Column Mapping -->
+                <section class="step-section" id="step-mapping" style="display: none;">
+                    <h2>🔗 Step 4: Column Mapping</h2>
+                    <p>Map the detected source headers to the corresponding template fields below.</p>
+                    <div id="match-score" class="match-score"></div>
+                    <div id="mapping-table-container"></div>
+                    <div class="action-buttons">
+                        <button id="save-mappings" class="primary-btn">💾 Save Mappings</button>
+                        <button id="continue-generation" class="success-btn">🚀 Generate Output</button>
+                    </div>
+                </section>
+                
+                <!-- Step 4: Generation Results -->
+                <section class="step-section" id="step-results" style="display: none;">
+                    <h2>✅ Step 6: Generation Complete</h2>
+                    <p>Your transformed output has been generated. You can now download the output.</p>
+                    <div id="generation-status" class="success-message"></div>
+                    <div class="action-buttons">
+                        <button id="new-transformation" class="secondary-btn">🔄 Start New Transformation</button>
+                        <button id="download-output" class="primary-btn">📥 Download Generated Excel</button>
+                    </div>
+                </section>
+            </main>
+
+            <!-- Footer Status Bar -->
+            <footer class="app-footer">
+                <div class="footer-left">
+                    <span class="status-indicator online"></span>
+                    <span>Server Connected</span>
+                </div>
+                <div class="footer-center">
+                    <span>Last Sync: Just now</span>
+                </div>
+                <div class="footer-right">
+                    <span>v2.0.0</span>
+                </div>
+            </footer>
+        </div>
     </div>
     
     <script src="js/app.js"></script>
