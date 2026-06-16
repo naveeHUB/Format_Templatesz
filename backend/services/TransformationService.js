@@ -5,45 +5,58 @@ const path = require('path');
 class TransformationService {
     constructor() {
         this.generatedDir = path.join(__dirname, '../uploads/generated');
+        this.templatesDir = path.join(__dirname, '../uploads/templates');
+        // Ensure directories exist
         if (!fs.existsSync(this.generatedDir)) {
             fs.mkdirSync(this.generatedDir, { recursive: true });
+        }
+        if (!fs.existsSync(this.templatesDir)) {
+            fs.mkdirSync(this.templatesDir, { recursive: true });
         }
     }
     
     async transformData(sourceFilePath, templateId, mappings, options = {}) {
-        // Load template structure
-        const templateFile = path.join(__dirname, `../data/templates/${templateId}.json`);
-        const templateStructure = JSON.parse(fs.readFileSync(templateFile, 'utf8'));
-        
-        // Load source workbook
+        // Validation
+        if (!sourceFilePath || !fs.existsSync(sourceFilePath)) {
+            throw new Error('Source file does not exist');
+        }
+        const templateJsonPath = path.join(__dirname, `../data/templates/${templateId}.json`);
+        if (!fs.existsSync(templateJsonPath)) {
+            throw new Error('Template definition file does not exist');
+        }
+        const templateWorkbookPath = path.join(this.templatesDir, `${templateId}.xlsx`);
+        if (!fs.existsSync(templateWorkbookPath)) {
+            throw new Error('Template workbook does not exist');
+        }
+        if (!mappings || Object.keys(mappings).length === 0) {
+            throw new Error('No mappings provided');
+        }
+
+        // Load workbooks and template structure
+        const templateStructure = JSON.parse(fs.readFileSync(templateJsonPath, 'utf8'));
         const sourceWorkbook = new ExcelJS.Workbook();
         await sourceWorkbook.xlsx.readFile(sourceFilePath);
-        
-        // Load template workbook
-        const templateWorkbookPath = path.join(__dirname, `../uploads/templates/${templateId}.xlsx`);
         const templateWorkbook = new ExcelJS.Workbook();
         await templateWorkbook.xlsx.readFile(templateWorkbookPath);
-        
-        // Process each sheet
-        for (const sheetConfig of templateStructure.sheets) {
-            const sourceSheet = sourceWorkbook.getWorksheet(1); // Use first sheet from source
-            const targetSheet = templateWorkbook.getWorksheet(sheetConfig.sheetName);
-            
-            if (sourceSheet && targetSheet) {
-                await this.transformSheet(sourceSheet, targetSheet, sheetConfig, mappings, options);
-            }
-        }
-        
-        // Save generated workbook
-        const outputFilename = `transformed_${Date.now()}_${path.basename(sourceFilePath)}`;
-        const outputPath = path.join(this.generatedDir, outputFilename);
-        await templateWorkbook.xlsx.writeFile(outputPath);
-        
-        return {
-            success: true,
-            outputFilename: outputFilename,
-            outputPath: outputPath
-        };
+
+        // Build unified generation context
+        const GenerationContext = require('./generators/GenerationContext');
+        const context = new GenerationContext({
+            template: templateStructure,
+            templateStructure,
+            sourceWorkbook,
+            templateWorkbook,
+            mappings,
+            options
+        });
+
+        // Select appropriate generator via factory
+        const generatorFactory = require('./GeneratorFactory');
+        const format = options.outputFormat ? options.outputFormat.toLowerCase() : 'xlsx';
+        const generator = generatorFactory.getGenerator(format);
+        // Delegate generation
+        const result = await generator.generate(context);
+        return result;
     }
     
     async transformSheet(sourceSheet, targetSheet, sheetConfig, mappings, options) {

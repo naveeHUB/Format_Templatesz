@@ -1,20 +1,22 @@
 <!DOCTYPE html>
 <html lang="en">
+
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Universal Excel Transformation Engine</title>
+    <title>Format Transformation Page</title>
     <link rel="stylesheet" href="css/style.css">
 </head>
+
 <body>
     <!-- Toast Notifications Container -->
     <div id="toast-container" class="toast-container"></div>
-    
+
     <!-- Collapsible Sidebar Layout -->
     <div class="app-layout">
         <aside class="sidebar" id="sidebar">
             <div class="sidebar-header">
-                <span class="logo">🔄 ExcelEngine</span>
+                <span class="logo">🔄 Format Editor</span>
                 <button id="sidebar-toggle" class="sidebar-toggle-btn">◀</button>
             </div>
             <nav class="sidebar-nav">
@@ -45,7 +47,7 @@
             <header class="app-header">
                 <div class="header-left">
                     <button id="hamburger-menu" class="hamburger-btn">☰</button>
-                    <h2>Universal Excel Transformation Engine</h2>
+                    <h2>Format Transformation Page</h2>
                 </div>
                 <div class="header-right">
                     <button id="theme-toggle" class="theme-toggle">🌙 Dark Mode</button>
@@ -125,14 +127,16 @@
             <main class="main-content">
                 <!-- Step 1: Upload and Analyze Template -->
                 <section class="step-section" id="step-template">
-                    <h2>📁 Step 1: Upload Excel Template</h2>
-                    <p>Select or drag-and-drop the reference Excel file that defines your target spreadsheet structure.</p>
+                    <h2>📁 Step 1: Upload Template (Excel, PDF, PowerPoint)</h2>
+                    <p>Select or drag-and-drop the reference template file (Excel, PDF, or PowerPoint) that defines your
+                        target structure.</p>
                     <div id="template-drop-zone" class="drop-zone">
                         <span class="drop-zone-icon">🗂️</span>
-                        <p>Drag & drop template Excel file (.xlsx, .xls) here</p>
+                        <p>Drag & drop template file (.xlsx, .xls, .pdf, .ppt, .pptx) here</p>
                         <p>or</p>
                         <button id="template-upload-btn" class="primary-btn">Select Template</button>
-                        <input type="file" id="template-file-input" accept=".xlsx,.xls" style="display: none;">
+                        <input type="file" id="template-file-input" accept=".xlsx,.xls,.pdf,.ppt,.pptx"
+                            style="display: none;">
                     </div>
                     <div id="template-status" class="status"></div>
                     <div id="template-structure" style="display: none; margin-top: 20px;">
@@ -140,7 +144,7 @@
                         <div id="structure-display"></div>
                     </div>
                 </section>
-                
+
                 <!-- Step 2: Upload Source File -->
                 <section class="step-section" id="step-source" style="display: none;">
                     <h2>📂 Step 2: Upload Source Excel File</h2>
@@ -150,11 +154,12 @@
                         <p>Drag & drop source Excel file (.xlsx, .xls) here</p>
                         <p>or</p>
                         <button id="source-upload-btn" class="primary-btn">Select Source File</button>
-                        <input type="file" id="source-file-input" accept=".xlsx,.xls" style="display: none;">
+                        <input type="file" id="source-file-input" accept=".xlsx,.xls,.pdf,.ppt,.pptx"
+                            style="display: none;">
                     </div>
                     <div id="source-status" class="status"></div>
                 </section>
-                
+
                 <!-- Step 3: Column Mapping -->
                 <section class="step-section" id="step-mapping" style="display: none;">
                     <h2>🔗 Step 4: Column Mapping</h2>
@@ -166,7 +171,7 @@
                         <button id="continue-generation" class="success-btn">🚀 Generate Output</button>
                     </div>
                 </section>
-                
+
                 <!-- Step 4: Generation Results -->
                 <section class="step-section" id="step-results" style="display: none;">
                     <h2>✅ Step 6: Generation Complete</h2>
@@ -174,7 +179,7 @@
                     <div id="generation-status" class="success-message"></div>
                     <div class="action-buttons">
                         <button id="new-transformation" class="secondary-btn">🔄 Start New Transformation</button>
-                        <button id="download-output" class="primary-btn">📥 Download Generated Excel</button>
+                        <button id="download-output" class="primary-btn">📥 Download Generated File</button>
                     </div>
                 </section>
             </main>
@@ -194,7 +199,8 @@
             </footer>
         </div>
     </div>
-    
+
     <script src="js/app.js"></script>
 </body>
+
 </html>

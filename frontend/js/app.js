@@ -4,11 +4,15 @@ let currentSourceHeaders = null;
 let currentSourceFile = null;
 let currentMappings = {};
 let currentOutputFile = null;
+let isManualMappingMode = false;
 
 // DOM Elements
-const templateDropZone = document.getElementById('template-drop-zone');
+// Add click handlers to trigger file dialogs when drop zones are clicked
+
 const templateFileInput = document.getElementById('template-file-input');
+// Show the upload button for template
 const templateUploadBtn = document.getElementById('template-upload-btn');
+if (templateUploadBtn) templateUploadBtn.style.display = 'inline-block';
 const templateStatus = document.getElementById('template-status');
 const stepTemplate = document.getElementById('step-template');
 const stepSource = document.getElementById('step-source');
@@ -84,16 +88,35 @@ function updateNavigation(stepNumber) {
 
 // Step 1: Upload and analyze template
 async function uploadTemplate(file) {
-    if (!file || (!file.name.endsWith('.xlsx') && !file.name.endsWith('.xls'))) {
-        showToast('Invalid File', 'Please upload a valid Excel workbook (.xlsx or .xls)', 'error');
+    if (!file || (!file.name.endsWith('.xlsx') && !file.name.endsWith('.xls') && !file.name.endsWith('.pdf') && !file.name.endsWith('.ppt') && !file.name.endsWith('.pptx'))) {
+        showToast('Invalid File', 'Please upload a valid template file (.xlsx, .xls, .pdf, .ppt, .pptx)', 'error');
         return;
     }
     
     const templateId = 'template_' + Date.now();
+    const isExcel = file.name.endsWith('.xlsx') || file.name.endsWith('.xls');
+    
+    // If not Excel, we skip server analysis and set a placeholder structure
+    if (!isExcel) {
+        // Simple placeholder structure for non-Excel templates
+        currentTemplateStructure = {
+            templateName: file.name,
+            sheetCount: 0,
+            sheets: []
+        };
+        currentTemplateId = templateId;
+        showStatus(templateStatus, '✅ Template accepted (non-Excel).', 'success');
+        showToast('Template Accepted', `File ${file.name} will be used as template without further analysis.`, 'info');
+        // Directly proceed to the next step (source upload)
+        showStepSource();
+        return;
+    }
+    
+    // Existing Excel handling
     const formData = new FormData();
     formData.append('file', file);
     formData.append('templateId', templateId);
-    formData.append('templateName', file.name.replace('.xlsx', '').replace('.xls', ''));
+    formData.append('templateName', file.name.replace('.xlsx', '').replace('.xls', '').replace('.pdf', '').replace('.ppt', '').replace('.pptx', ''));
     
     showStatus(templateStatus, 'Analyzing template structure...', 'info');
     showToast('Analyzing Template', 'Extracting sheets, formatting and structure...', 'info');
@@ -111,8 +134,19 @@ async function uploadTemplate(file) {
         
         if (!response.ok) throw new Error('Analysis failed');
         
+        // Reset the file input so the same template can be picked again without extra clicks
+        if (templateFileInput) templateFileInput.value = '';
+
+        // Reset UI state for source selection
+        currentSourceFile = null;
+        currentSourceHeaders = null;
+        currentMappings = {};
+        
         currentTemplateId = templateId;
         currentTemplateStructure = await response.json();
+        currentMappings = {};
+        currentSourceHeaders = null;
+        currentSourceFile = null;
         
         showStatus(templateStatus, '✅ Template analyzed successfully!', 'success');
         showToast('Success', 'Template analyzed successfully!', 'success');
@@ -138,80 +172,77 @@ function displayTemplateStructure(structure) {
         container.style.display = 'block';
         container.innerHTML = `
             <div class="structure-summary" style="background: var(--bg-app); border: 1px solid var(--border); padding: 15px; border-radius: var(--radius-lg); margin-bottom: 20px;">
-                <p style="margin-bottom: 5px;"><strong>Template Name:</strong> ${structure.templateName}</p>
-                <p style="margin-bottom: 0;"><strong>Sheets Count:</strong> ${structure.sheetCount}</p>
+                <p style="margin-bottom: 5px;"><strong>Template Name:</strong> ${structure.templateName || structure.templateName || structure.template || 'N/A'}</p>
+                <p style="margin-bottom: 0;"><strong>Sheets Count:</strong> ${structure.sheetCount || 0}</p>
             </div>
             <div class="sheets-list">
-                ${structure.sheets.map(sheet => `
+                ${structure.sheets ? structure.sheets.map(sheet => `
                     <div class="sheet-card">
                         <h4>📄 ${sheet.sheetName}</h4>
-                        <p style="margin-top: 10px;"><strong>Headers:</strong> ${sheet.headers.map(h => h.header).join(', ')}</p>
-                        <p style="margin-top: 5px; color: var(--text-secondary);">Columns: ${sheet.columnCount} | Rows: ${sheet.rowCount}</p>
+                        <p style="margin-top: 10px;"><strong>Headers:</strong> ${sheet.headers ? sheet.headers.map(h => h.header).join(', ') : ''}</p>
+                        <p style="margin-top: 5px; color: var(--text-secondary);">Columns: ${sheet.columnCount || 0} | Rows: ${sheet.rowCount || 0}</p>
                     </div>
-                `).join('')}
-            </div>
-            <div style="margin-top: 30px; text-align: right;">
-                <button id="template-continue-btn" class="primary-btn" style="padding: 12px 24px; font-size: 14px;">Continue to Step 2 →</button>
+                `).join('') : ''}
             </div>
         `;
-        
-        document.getElementById('template-continue-btn')?.addEventListener('click', () => {
-            showStepSource();
-        });
+        // Auto-continue to source step after showing structure
+        showStepSource();
     }
 }
 
-function showStepSource() {
-    stepTemplate.style.display = 'none';
-    stepSource.style.display = 'block';
-    
-    const matchingContainer = document.getElementById('matching-results-container');
-    if (matchingContainer) matchingContainer.style.display = 'none';
-    
-    const dropZone = document.getElementById('source-drop-zone');
-    if (dropZone) dropZone.style.display = 'block';
-    
-    updateNavigation(2);
-}
+
 
 // Step 2: Upload source file
 const sourceDropZone = document.getElementById('source-drop-zone');
 const sourceFileInput = document.getElementById('source-file-input');
+// Show the source upload button
 const sourceUploadBtn = document.getElementById('source-upload-btn');
+if (sourceUploadBtn) sourceUploadBtn.style.display = 'inline-block';
 const sourceStatus = document.getElementById('source-status');
 
+// Reset file inputs after processing to allow re-selection of same files
+function resetFileInput(input) {
+    if (input) input.value = '';
+}
+// Call reset after successful upload
+// In uploadTemplate after processing:
+// resetFileInput(templateFileInput);
+// In uploadSource after processing:
+// resetFileInput(sourceFileInput);
+
 async function uploadSource(file) {
-    if (!file || (!file.name.endsWith('.xlsx') && !file.name.endsWith('.xls'))) {
-        showToast('Invalid File', 'Please upload a valid Excel workbook (.xlsx or .xls)', 'error');
+    const allowedExt = ['.xlsx', '.xls', '.pdf', '.ppt', '.pptx'];
+    const lowerName = file.name.toLowerCase();
+    const isExcel = lowerName.endsWith('.xlsx') || lowerName.endsWith('.xls');
+    if (!allowedExt.some(ext => lowerName.endsWith(ext))) {
+        showToast('Invalid File', 'Please upload a valid source file (.xlsx, .xls, .pdf, .ppt, .pptx)', 'error');
         return;
     }
-    
     currentSourceFile = file;
-    showStatus(sourceStatus, 'Analyzing source file...', 'info');
-    showToast('Analyzing Source', 'Extracting file header names...', 'info');
-    
-    if (sourceUploadBtn) {
-        sourceUploadBtn.classList.add('btn-loading');
-        sourceUploadBtn.disabled = true;
-    }
-    
-    try {
-        currentSourceHeaders = await extractSourceHeaders(file);
-        
-        showStatus(sourceStatus, `✅ Source file analyzed!`, 'success');
-        showToast('Success', 'Source file headers parsed successfully!', 'success');
-        
-        // Match with template
-        await matchTemplate();
-        
-    } catch (error) {
-        showStatus(sourceStatus, 'Error analyzing source: ' + error.message, 'error');
-        showToast('Error', 'Source analysis failed: ' + error.message, 'error');
-    } finally {
-        if (sourceUploadBtn) {
-            sourceUploadBtn.classList.remove('btn-loading');
-            sourceUploadBtn.disabled = false;
+    if (isExcel) {
+        try {
+            currentSourceHeaders = await extractSourceHeaders(file);
+            showStatus(sourceStatus, `✅ Source file analyzed!`, 'success');
+            showToast('Success', 'Source file headers parsed successfully!', 'success');
+            await matchTemplate();
+        } catch (error) {
+            showStatus(sourceStatus, 'Error analyzing source: ' + error.message, 'error');
+            showToast('Error', 'Source analysis failed: ' + error.message, 'error');
         }
+    } else {
+        // Non-Excel source, skip header extraction
+        currentSourceHeaders = [];
+        showStatus(sourceStatus, `✅ Source file accepted (non-Excel).`, 'success');
+        showToast('Source Accepted', `File ${file.name} will be used as source without header analysis.`, 'info');
+        // Directly proceed to mapping UI
+        renderMappingUI();
+        updateNavigation(4);
+    }
+    // Reset the file input so the same source file can be picked again without extra clicks
+    if (sourceFileInput) sourceFileInput.value = '';
+    if (sourceUploadBtn) {
+        sourceUploadBtn.classList.remove('btn-loading');
+        sourceUploadBtn.disabled = false;
     }
 }
 
@@ -392,33 +423,80 @@ function renderMappingUI() {
     
     const avgScore = matches.reduce((sum, m) => sum + m.score, 0) / matches.length;
     matchScoreDiv.innerHTML = `
-        <div class="score-card ${getConfidenceClass(avgScore)}" style="margin-bottom: var(--space-4);">
-            <strong style="font-size: 1.1rem; display: block; margin-bottom: var(--space-1);">Overall Match Score: ${Math.round(avgScore)}%</strong>
-            <span style="font-size: 0.875rem; color: var(--text-secondary);">${getConfidenceText(avgScore)}</span>
+        <div class="score-card ${getConfidenceClass(avgScore)}" style="margin-bottom: var(--space-4); display: flex; justify-content: space-between; align-items: center; padding: 15px; border-radius: var(--radius-lg);">
+            <div>
+                <strong style="font-size: 1.1rem; display: block; margin-bottom: var(--space-1);">Overall Match Score: ${Math.round(avgScore)}%</strong>
+                <span style="font-size: 0.875rem; color: var(--text-secondary);">${getConfidenceText(avgScore)}</span>
+            </div>
+            <button id="toggle-mapping-mode" class="secondary-btn" style="padding: 8px 16px; font-size: 0.85rem; cursor: pointer;">
+                ${isManualMappingMode ? '📋 Use Dropdown Selectors' : '✏️ Type Target Fields Manually'}
+            </button>
         </div>
     `;
-    
+
+    // Populate currentMappings with any missing mappings
     matches.forEach(match => {
         if (!currentMappings[match.sourceHeader]) {
             currentMappings[match.sourceHeader] = match.templateField;
         }
     });
-    
-    container.innerHTML = `
-        <table class="mapping-table" style="box-shadow: var(--shadow-sm); border: 1px solid var(--border); border-radius: var(--radius-lg); overflow: hidden;">
-            <thead>
-                <tr>
-                    <th style="width: 30%;">Source Header</th>
-                    <th style="width: 10%; text-align: center;">→</th>
-                    <th style="width: 30%;">Template Field</th>
-                    <th style="width: 15%;">Match %</th>
-                    <th style="width: 15%;">Confidence</th>
-                </tr>
-            </thead>
-            <tbody>
-                ${matches.map(match => {
-                    const selectedField = currentMappings[match.sourceHeader] || match.templateField;
-                    return `
+
+    const isManual = isManualMappingMode || !currentTemplateStructure || !currentTemplateStructure.sheets || currentTemplateStructure.sheets.length === 0;
+
+    if (isManual) {
+        // Manual mapping: list source headers with a text input for target field name
+        container.innerHTML = `
+            <table class="mapping-table" style="box-shadow: var(--shadow-sm); border: 1px solid var(--border); border-radius: var(--radius-lg); overflow: hidden;">
+                <thead>
+                    <tr>
+                        <th style="width: 30%;">Source Header</th>
+                        <th style="width: 10%; text-align: center;">→</th>
+                        <th style="width: 45%;">Target Field (type manually)</th>
+                        <th style="width: 15%;">Match %</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    ${matches.map(match => {
+                        const val = currentMappings[match.sourceHeader] || '';
+                        return `
+                        <tr class="${getConfidenceClass(match.score)}">
+                            <td style="font-weight: 500;">${escapeHtml(match.sourceHeader)}</td>
+                            <td style="text-align: center; color: var(--text-secondary);">→</td>
+                            <td>
+                                <input type="text" class="manual-target-input" data-source="${match.sourceHeader}" value="${escapeHtml(val)}" style="width: 100%; padding: var(--space-2); border: 1px solid var(--border); border-radius: var(--radius-sm); font-size: 0.9rem;" />
+                            </td>
+                            <td style="font-weight: 600;">${match.score}%</td>
+                        </tr>
+                        `;
+                    }).join('')}
+                </tbody>
+            </table>
+        `;
+
+        // Attach listeners to manual inputs
+        document.querySelectorAll('.manual-target-input').forEach(input => {
+            input.addEventListener('input', e => {
+                const src = input.dataset.source;
+                currentMappings[src] = input.value;
+            });
+        });
+    } else {
+        // Existing auto‑generated UI when template fields are available
+        container.innerHTML = `
+            <table class="mapping-table" style="box-shadow: var(--shadow-sm); border: 1px solid var(--border); border-radius: var(--radius-lg); overflow: hidden;">
+                <thead>
+                    <tr>
+                        <th style="width: 30%;">Source Header</th>
+                        <th style="width: 10%; text-align: center;">→</th>
+                        <th style="width: 30%;">Template Field</th>
+                        <th style="width: 15%;">Match %</th>
+                        <th style="width: 15%;">Confidence</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    ${matches.map(match => {
+                        const selectedField = currentMappings[match.sourceHeader] || match.templateField;
+                        return `
                         <tr class="${getConfidenceClass(match.score)}">
                             <td style="font-weight: 500;">${escapeHtml(match.sourceHeader)}</td>
                             <td style="text-align: center; color: var(--text-secondary);">→</td>
@@ -430,19 +508,44 @@ function renderMappingUI() {
                             <td style="font-weight: 600;">${match.score}%</td>
                             <td style="font-weight: 500;">${getStatusIcon(match.confidence)} ${match.confidence}</td>
                         </tr>
-                    `;
-                }).join('')}
-            </tbody>
-        </table>
-    `;
-    
-    document.querySelectorAll('.template-field-select').forEach(select => {
-        select.addEventListener('change', (e) => {
-            const source = select.dataset.source;
-            const target = select.value;
-            currentMappings[source] = target;
+                        `;
+                    }).join('')}
+                </tbody>
+            </table>
+        `;
+        document.querySelectorAll('.template-field-select').forEach(select => {
+            select.addEventListener('change', (e) => {
+                const source = select.dataset.source;
+                const target = select.value;
+                currentMappings[source] = target;
+            });
         });
+    }
+    
+    // Attach listener to mode toggle button
+    document.getElementById('toggle-mapping-mode')?.addEventListener('click', () => {
+        isManualMappingMode = !isManualMappingMode;
+        renderMappingUI();
     });
+
+    // Append persistent format selector after the mapping table (unchanged)
+    const formatDiv = document.createElement('div');
+    formatDiv.id = 'format-selection';
+    formatDiv.style.marginTop = 'var(--space-5)';
+    formatDiv.innerHTML = `
+        <label for="output-format-select" style="margin-right: var(--space-2); font-weight: 500;">Target Format:</label>
+        <select id="output-format-select" style="padding: var(--space-2) var(--space-3); border-radius: var(--radius-md); border: 1px solid var(--border); background-color: var(--bg-card); color: var(--text-primary);">
+            <option value="xlsx">Excel (.xlsx)</option>
+            <option value="xls">Excel (.xls)</option>
+            <option value="pptx">PowerPoint (.pptx)</option>
+            <option value="ppt">PowerPoint (.ppt)</option>
+            <option value="pdf">PDF (.pdf)</option>
+        </select>
+    `;
+    const mappingContainer = document.getElementById('mapping-table-container');
+    if (mappingContainer) {
+        mappingContainer.parentNode.insertBefore(formatDiv, mappingContainer.nextSibling);
+    }
 }
 
 function generateOptions(templateStructure, selectedValue) {
@@ -558,6 +661,9 @@ async function showGenerationPreview() {
         const sourceData = await getSourcePreviewData();
         const outputData = getMappedPreviewData(sourceData);
         
+        const formatSelect = document.getElementById('output-format-select');
+        const selectedFormat = formatSelect ? formatSelect.value : 'xlsx';
+        
         stepMapping.style.display = 'none';
         
         let previewContainer = document.getElementById('step-preview-container');
@@ -589,6 +695,17 @@ async function showGenerationPreview() {
             <h2>📋 Step 5: Generation Preview</h2>
             <p>Compare the raw source data with the mapped template structure (first 3 rows):</p>
             
+            <div style="margin-bottom: 15px;">
+                <label for="output-format-select" style="margin-right: var(--space-2); font-weight: 500;">Target Format:</label>
+                <select id="output-format-select" style="padding: var(--space-2) var(--space-3); border-radius: var(--radius-md); border: 1px solid var(--border); background-color: var(--bg-card); color: var(--text-primary);">
+                    <option value="xlsx" ${selectedFormat === 'xlsx' ? 'selected' : ''}>Excel (.xlsx)</option>
+                    <option value="xls" ${selectedFormat === 'xls' ? 'selected' : ''}>Excel (.xls)</option>
+                    <option value="pptx" ${selectedFormat === 'pptx' ? 'selected' : ''}>PowerPoint (.pptx)</option>
+                    <option value="ppt" ${selectedFormat === 'ppt' ? 'selected' : ''}>PowerPoint (.ppt)</option>
+                    <option value="pdf" ${selectedFormat === 'pdf' ? 'selected' : ''}>PDF (.pdf)</option>
+                </select>
+            </div>
+            
             <div style="display: flex; flex-direction: column; gap: var(--space-5); margin-top: 20px;">
                 <div style="overflow-x: auto; border: 1px solid var(--border); border-radius: var(--radius-lg); padding: var(--space-4); background: var(--bg-card);">
                     <h4 style="margin-bottom: 10px; font-weight: 600; color: var(--text-secondary);">Source Data Preview (First 3 Rows)</h4>
@@ -612,7 +729,8 @@ async function showGenerationPreview() {
         `;
         
         document.getElementById('confirm-generate-btn')?.addEventListener('click', async () => {
-            await generateOutput();
+            const format = document.getElementById('output-format-select').value;
+            await generateOutput(format);
         });
         
     } catch (error) {
@@ -620,7 +738,7 @@ async function showGenerationPreview() {
     }
 }
 
-async function generateOutput() {
+async function generateOutput(format = 'xlsx') {
     if (!currentSourceFile) {
         showToast('Warning', 'Please upload a source file first', 'warning');
         return;
@@ -636,6 +754,7 @@ async function generateOutput() {
     formData.append('file', currentSourceFile);
     formData.append('templateId', currentTemplateId);
     formData.append('mappings', JSON.stringify(currentMappings));
+    formData.append('format', format);
     
     try {
         const response = await fetch('/api/transform', {
@@ -653,12 +772,15 @@ async function generateOutput() {
         
         stepResults.style.display = 'block';
         
+        // Immediately trigger download of the generated workbook
+        if (currentOutputFile) downloadOutput();
+        
         const fileSizeStr = formatBytes(currentSourceFile.size);
         document.getElementById('generation-status').innerHTML = `
             <div style="text-align: center; padding: 20px 0;">
                 <span style="font-size: 3rem; display: block; margin-bottom: 10px;">🎉</span>
                 <h3 style="font-size: 1.25rem; font-weight: 600; margin-bottom: 10px;">Transformation Completed Successfully!</h3>
-                <p style="font-size: 0.875rem; color: var(--text-secondary);">Your Excel workbook has been transformed and is ready for download.</p>
+                <p style="font-size: 0.875rem; color: var(--text-secondary);">Your transformed file has been generated and is ready for download.</p>
                 <div class="stats-card" style="background: var(--bg-app); padding: var(--space-4); border-radius: var(--radius-lg); margin: var(--space-4) auto; max-width: 500px; text-align: left; border: 1px solid var(--border); box-shadow: var(--shadow-sm);">
                     <p style="margin-bottom: var(--space-2);"><strong>Output Filename:</strong> ${escapeHtml(result.outputFilename)}</p>
                     <p style="margin-bottom: var(--space-2);"><strong>File Size:</strong> ${fileSizeStr}</p>
@@ -667,7 +789,7 @@ async function generateOutput() {
                 </div>
             </div>
         `;
-        showToast('Success', 'Excel workbook generated successfully!', 'success');
+        showToast('Success', `Transformed file in ${format.toUpperCase()} format generated successfully!`, 'success');
         updateNavigation(6);
     } catch (error) {
         showToast('Error', 'Failed to generate file: ' + error.message, 'error');
@@ -686,6 +808,12 @@ function downloadOutput() {
     }
 }
 
+function showStepSource() {
+    if (stepTemplate) stepTemplate.style.display = 'none';
+    if (stepSource) stepSource.style.display = 'block';
+    updateNavigation(2);
+}
+
 function formatBytes(bytes) {
     if (bytes === 0) return '0 Bytes';
     const k = 1024;
@@ -693,9 +821,74 @@ function formatBytes(bytes) {
     const i = Math.floor(Math.log(bytes) / Math.log(k));
     return parseFloat((bytes / Math.pow(k, i)).toFixed(2)) + ' ' + sizes[i];
 }
-
-// Sidebar and Hamburger Menu Interactions
 document.addEventListener('DOMContentLoaded', () => {
+    const templateDropZone = document.getElementById('template-drop-zone');
+
+    // Initialize all UI event listeners after DOM is ready
+    const initUIListeners = () => {
+        // Upload button (hidden) – still allow programmatic click
+        templateUploadBtn?.addEventListener('click', () => templateFileInput.click());
+        templateFileInput?.addEventListener('change', async (e) => {
+            if (e.target.files[0]) {
+                await uploadTemplate(e.target.files[0]);
+            }
+            e.target.value = '';
+        });
+
+        // Source upload button (hidden)
+        sourceUploadBtn?.addEventListener('click', () => sourceFileInput.click());
+        sourceFileInput?.addEventListener('change', async (e) => {
+            if (e.target.files[0]) {
+                await uploadSource(e.target.files[0]);
+            }
+            e.target.value = '';
+        });
+
+        // Drag‑and‑drop for template
+        if (templateDropZone) {
+            templateDropZone.addEventListener('dragover', (e) => { e.preventDefault(); templateDropZone.classList.add('drag-over'); });
+            templateDropZone.addEventListener('dragleave', () => { templateDropZone.classList.remove('drag-over'); });
+            templateDropZone.addEventListener('drop', (e) => { e.preventDefault(); templateDropZone.classList.remove('drag-over'); if (e.dataTransfer.files[0]) uploadTemplate(e.dataTransfer.files[0]); });
+            templateDropZone.addEventListener('click', () => templateFileInput.click());
+        }
+
+        // Drag‑and‑drop for source
+        if (sourceDropZone) {
+            sourceDropZone.addEventListener('dragover', (e) => { e.preventDefault(); sourceDropZone.classList.add('drag-over'); });
+            sourceDropZone.addEventListener('dragleave', () => { sourceDropZone.classList.remove('drag-over'); });
+            sourceDropZone.addEventListener('drop', (e) => { e.preventDefault(); sourceDropZone.classList.remove('drag-over'); if (e.dataTransfer.files[0]) uploadSource(e.dataTransfer.files[0]); });
+            sourceDropZone.addEventListener('click', () => sourceFileInput.click());
+        }
+
+        // Theme toggle
+        document.getElementById('theme-toggle')?.addEventListener('click', () => {
+            document.body.classList.toggle('dark-mode');
+            const isDark = document.body.classList.contains('dark-mode');
+            document.getElementById('theme-toggle').textContent = isDark ? '☀️ Light Mode' : '🌙 Dark Mode';
+        });
+
+        // Save mappings
+        document.getElementById('save-mappings')?.addEventListener('click', async () => {
+            await saveMappings();
+        });
+
+        // Continue generation
+        document.getElementById('continue-generation')?.addEventListener('click', async () => {
+            await showGenerationPreview();
+            updateNavigation(5);
+        });
+
+        // Download output
+        document.getElementById('download-output')?.addEventListener('click', () => {
+            downloadOutput();
+        });
+
+        // Start new transformation
+        document.getElementById('new-transformation')?.addEventListener('click', () => {
+            location.reload();
+        });
+    };
+    initUIListeners();
     const sidebar = document.getElementById('sidebar');
     const sidebarToggle = document.getElementById('sidebar-toggle');
     const hamburgerMenu = document.getElementById('hamburger-menu');
@@ -763,72 +956,26 @@ function escapeHtml(str) {
 }
 
 // Event listeners
-templateUploadBtn?.addEventListener('click', () => templateFileInput.click());
-templateFileInput?.addEventListener('change', (e) => {
-    if (e.target.files[0]) uploadTemplate(e.target.files[0]);
-});
 
-if (templateDropZone) {
-    templateDropZone.addEventListener('dragover', (e) => {
-        e.preventDefault();
-        templateDropZone.classList.add('drag-over');
-    });
-    templateDropZone.addEventListener('dragleave', () => {
-        templateDropZone.classList.remove('drag-over');
-    });
-    templateDropZone.addEventListener('drop', (e) => {
-        e.preventDefault();
-        templateDropZone.classList.remove('drag-over');
-        if (e.dataTransfer.files[0]) uploadTemplate(e.dataTransfer.files[0]);
-    });
-    templateDropZone.addEventListener('click', () => templateFileInput.click());
-}
 
-sourceUploadBtn?.addEventListener('click', () => sourceFileInput.click());
-sourceFileInput?.addEventListener('change', (e) => {
-    if (e.target.files[0]) uploadSource(e.target.files[0]);
-});
 
-if (sourceDropZone) {
-    sourceDropZone.addEventListener('dragover', (e) => {
-        e.preventDefault();
-        sourceDropZone.classList.add('drag-over');
-    });
-    sourceDropZone.addEventListener('dragleave', () => {
-        sourceDropZone.classList.remove('drag-over');
-    });
-    sourceDropZone.addEventListener('drop', (e) => {
-        e.preventDefault();
-        sourceDropZone.classList.remove('drag-over');
-        if (e.dataTransfer.files[0]) uploadSource(e.dataTransfer.files[0]);
-    });
-    sourceDropZone.addEventListener('click', () => sourceFileInput.click());
-}
+
+
+
+
+
+
 
 // Dark mode toggle
-document.getElementById('theme-toggle')?.addEventListener('click', () => {
-    document.body.classList.toggle('dark-mode');
-    const isDark = document.body.classList.contains('dark-mode');
-    document.getElementById('theme-toggle').textContent = isDark ? '☀️ Light Mode' : '🌙 Dark Mode';
-});
+
 
 // Save mappings event
-document.getElementById('save-mappings')?.addEventListener('click', async () => {
-    await saveMappings();
-});
+
 
 // Continue generation event
-document.getElementById('continue-generation')?.addEventListener('click', async () => {
-    await showGenerationPreview();
-    updateNavigation(5);
-});
+
 
 // Download output event
-document.getElementById('download-output')?.addEventListener('click', () => {
-    downloadOutput();
-});
+
 
 // Start new transformation event
-document.getElementById('new-transformation')?.addEventListener('click', () => {
-    location.reload();
-});

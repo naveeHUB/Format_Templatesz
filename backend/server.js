@@ -10,6 +10,24 @@ app.use(cors());
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
 
+// Simple Basic Authentication middleware
+function authMiddleware(req, res, next) {
+  const authHeader = req.headers['authorization'];
+  if (!authHeader) {
+    res.setHeader('WWW-Authenticate', 'Basic realm="Protected Area"');
+    return res.status(401).send('Authentication required');
+  }
+  const [type, credentials] = authHeader.split(' ');
+  if (type !== 'Basic') {
+    return res.status(400).send('Invalid authentication type');
+  }
+  const decoded = Buffer.from(credentials, 'base64').toString('utf8');
+  if (decoded !== 'admin:Password') {
+    return res.status(403).send('Invalid credentials');
+  }
+  next();
+}
+app.use(authMiddleware);
 // Ensure directories exist
 const dirs = ['uploads/templates', 'uploads/sources', 'uploads/generated', 'data/templates'];
 dirs.forEach(dir => {
@@ -18,7 +36,12 @@ dirs.forEach(dir => {
 });
 
 // Import routes
+// Import all route modules
+// const generateRoutes = require('./routes/generateRoutes'); // Unused
 const transformationRoutes = require('./routes/transformationRoutes');
+// const mappingRoutes = require('./routes/mappingRoutes'); // Unused
+// const templateDiscoveryRoutes = require('./routes/templateDiscoveryRoutes'); // Unused
+// const templateRegistryRoutes = require('./routes/templateRegistryRoutes'); // Unused
 
 // Use routes
 app.use('/api', transformationRoutes);

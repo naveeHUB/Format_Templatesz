@@ -135,6 +135,15 @@ body {
     transition: var(--transition);
 }
 
+/* Hide logo when sidebar is collapsed and align toggle button */
+.sidebar.collapsed .sidebar-header .logo {
+    display: none; /* Remove from layout to free space */
+}
+
+.sidebar.collapsed .sidebar-header {
+    justify-content: flex-end; /* Align toggle button to the right */
+}
+
 .sidebar.collapsed .sidebar-header .logo {
     opacity: 0;
     pointer-events: none;
