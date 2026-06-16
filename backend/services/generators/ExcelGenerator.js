@@ -2,6 +2,7 @@
 const path = require('path');
 const fs = require('fs');
 const AppError = require('../AppError');
+const FormulaResolver = require('../FormulaResolver');
 
 /**
  * ExcelGenerator - generates Excel files using the existing transformation logic.
@@ -52,9 +53,50 @@ class ExcelGenerator {
     const mappedData = this.applyMappingsToData(sourceData, mappings);
     this.clearDataRows(targetSheet, sheetConfig);
     await this.writeDataToSheet(targetSheet, mappedData, sheetConfig);
+    // Compute and write formula-driven columns AFTER regular data is written
+    await this.writeFormulaColumns(targetSheet, sourceData, sheetConfig, mappings, options);
     await this.preserveFormulas(targetSheet, sheetConfig);
     await this.preserveFormatting(targetSheet, sheetConfig);
     await this.preserveMergedCells(targetSheet, sheetConfig);
+  }
+
+  /**
+   * Compute values for every formula column in this sheet and write them.
+   * Writes a live Excel formula with the pre-calculated result stored in the
+   * cell so the file is correct both with and without Excel recalculation.
+   */
+  async writeFormulaColumns(targetSheet, sourceData, sheetConfig, mappings, options) {
+    const formulaColumns = sheetConfig.formulaColumns || [];
+    if (formulaColumns.length === 0) return;
+
+    const formulaResolutions = (options && options.formulaResolutions) ? options.formulaResolutions : {};
+
+    for (const formulaCol of formulaColumns) {
+      if (!formulaCol.isSimpleArithmetic) {
+        // Complex formula — skip computation, leave existing template formula intact
+        continue;
+      }
+
+      for (let rowIdx = 0; rowIdx < sourceData.length; rowIdx++) {
+        const targetRowNum = rowIdx + 2; // row 1 = header, row 2 = first data row
+        const targetRow = targetSheet.getRow(targetRowNum);
+        const cell = targetRow.getCell(formulaCol.columnIndex);
+
+        // Pre-calculate the numeric result
+        const computedValue = FormulaResolver.computeValue(
+          formulaCol,
+          sourceData[rowIdx],
+          mappings,
+          formulaResolutions
+        );
+
+        // Write BOTH a live Excel formula AND the pre-calculated result
+        cell.value = {
+          formula: FormulaResolver.buildExcelFormula(formulaCol.formulaTemplate, targetRowNum),
+          result: computedValue
+        };
+      }
+    }
   }
 
   async extractSourceData(sourceSheet, templateHeaders) {

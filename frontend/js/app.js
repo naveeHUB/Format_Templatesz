@@ -5,6 +5,7 @@ let currentSourceFile = null;
 let currentMappings = {};
 let currentOutputFile = null;
 let isManualMappingMode = false;
+let currentFormulaResolutions = {};   // user-confirmed formula variable bindings
 
 // DOM Elements
 // Add click handlers to trigger file dialogs when drop zones are clicked
@@ -528,6 +529,53 @@ function renderMappingUI() {
         renderMappingUI();
     });
 
+    // ── Formula columns: show as read-only 🧮 rows ──────────────────────────
+    const allFormulaHeaders = (currentTemplateStructure && currentTemplateStructure.sheets)
+        ? currentTemplateStructure.sheets.flatMap(s =>
+            (s.formulaColumns || []).map(fc => fc.header)
+          )
+        : [];
+
+    if (allFormulaHeaders.length > 0) {
+        const formulaSection = document.createElement('div');
+        formulaSection.style.cssText = 'margin-top: var(--space-4);';
+        formulaSection.innerHTML = `
+            <h4 style="font-size:0.9rem;font-weight:600;color:var(--text-secondary);margin-bottom:var(--space-2);">
+                🧮 Auto-Computed Formula Columns
+            </h4>
+            <table class="mapping-table" style="box-shadow:var(--shadow-sm);border:1px solid var(--border);border-radius:var(--radius-lg);overflow:hidden;">
+                <thead>
+                    <tr>
+                        <th style="width:35%;">Template Column</th>
+                        <th style="width:10%;text-align:center;">Type</th>
+                        <th style="width:55%;">Formula / Source</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    ${(currentTemplateStructure.sheets.flatMap(s => s.formulaColumns || [])).map(fc => `
+                        <tr style="background:var(--bg-app);">
+                            <td style="font-weight:600;">
+                                <span class="formula-badge">🧮</span>
+                                ${escapeHtml(fc.header)}
+                            </td>
+                            <td style="text-align:center;">
+                                <span style="font-size:0.7rem;background:#f0f9ff;color:#0369a1;padding:2px 6px;border-radius:4px;font-weight:600;">
+                                    ${fc.isSimpleArithmetic ? 'FORMULA' : 'COMPLEX'}
+                                </span>
+                            </td>
+                            <td style="font-size:0.8rem;color:var(--text-secondary);">
+                                <code style="background:var(--bg-card);padding:2px 6px;border-radius:4px;">${escapeHtml(fc.formulaTemplate || '')}</code>
+                                <br><span style="font-size:0.72rem;">Depends on: ${(fc.formulaDependencies||[]).map(d=>escapeHtml(d.headerName)).join(', ')||'—'}</span>
+                            </td>
+                        </tr>
+                    `).join('')}
+                </tbody>
+            </table>
+            <p style="font-size:0.78rem;color:var(--text-secondary);margin-top:var(--space-2);">⚡ These columns will be computed automatically. If any variable can't be matched you'll be asked before generation.</p>
+        `;
+        container.parentNode.insertBefore(formulaSection, container.nextSibling);
+    }
+
     // Append persistent format selector after the mapping table (unchanged)
     const formatDiv = document.createElement('div');
     formatDiv.id = 'format-selection';
@@ -730,7 +778,7 @@ async function showGenerationPreview() {
         
         document.getElementById('confirm-generate-btn')?.addEventListener('click', async () => {
             const format = document.getElementById('output-format-select').value;
-            await generateOutput(format);
+            await generateOutput(format, currentFormulaResolutions);
         });
         
     } catch (error) {
@@ -738,7 +786,7 @@ async function showGenerationPreview() {
     }
 }
 
-async function generateOutput(format = 'xlsx') {
+async function generateOutput(format = 'xlsx', formulaResolutions = {}) {
     if (!currentSourceFile) {
         showToast('Warning', 'Please upload a source file first', 'warning');
         return;
@@ -755,6 +803,7 @@ async function generateOutput(format = 'xlsx') {
     formData.append('templateId', currentTemplateId);
     formData.append('mappings', JSON.stringify(currentMappings));
     formData.append('format', format);
+    formData.append('formulaResolutions', JSON.stringify(formulaResolutions));
     
     try {
         const response = await fetch('/api/transform', {
@@ -874,8 +923,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
         // Continue generation
         document.getElementById('continue-generation')?.addEventListener('click', async () => {
-            await showGenerationPreview();
-            updateNavigation(5);
+            await checkFormulaColumns();
         });
 
         // Download output
@@ -912,6 +960,153 @@ document.addEventListener('DOMContentLoaded', () => {
     // Initialize navigation bar indicator
     updateNavigation(1);
 });
+
+// ── Formula column resolution helpers ────────────────────────────────────────
+
+/**
+ * Called when user clicks "Generate Output".
+ * Checks if any template formula columns need user input before proceeding.
+ */
+async function checkFormulaColumns() {
+    if (!currentTemplateId || !currentTemplateStructure) {
+        await showGenerationPreview();
+        updateNavigation(5);
+        return;
+    }
+
+    // No sheets = no formula columns
+    const hasSheets = currentTemplateStructure.sheets && currentTemplateStructure.sheets.length > 0;
+    if (!hasSheets) {
+        await showGenerationPreview();
+        updateNavigation(5);
+        return;
+    }
+
+    try {
+        const resp = await fetch('/api/resolve-formulas', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ templateId: currentTemplateId, mappings: currentMappings })
+        });
+        if (!resp.ok) throw new Error('resolve-formulas failed');
+        const data = await resp.json();
+
+        if (!data.hasFormulaColumns || data.needsUserInput.length === 0) {
+            // All clear — go straight to preview
+            currentFormulaResolutions = {};
+            await showGenerationPreview();
+            updateNavigation(5);
+            return;
+        }
+
+        // Some formula variables need user input — show modal
+        renderFormulaResolutionModal(data.needsUserInput, currentSourceHeaders || []);
+    } catch (err) {
+        // If the endpoint fails, proceed without formula resolution
+        showToast('Warning', 'Could not analyse formula columns, proceeding without them.', 'warning');
+        currentFormulaResolutions = {};
+        await showGenerationPreview();
+        updateNavigation(5);
+    }
+}
+
+/**
+ * Renders the Formula Column Setup modal.
+ * @param {Array}  unresolvedColumns  Array of formulaColumn objects with .unresolvedVars
+ * @param {Array}  sourceHeaders      All source column names available to the user
+ */
+function renderFormulaResolutionModal(unresolvedColumns, sourceHeaders) {
+    const modal = document.getElementById('formula-resolution-modal');
+    if (!modal) return;
+
+    const body = document.getElementById('formula-resolution-body');
+    body.innerHTML = unresolvedColumns.map(fc => {
+        // Build rows for each unresolved variable in this formula column
+        return fc.unresolvedVars.map(varName => {
+            const optionsHtml = sourceHeaders
+                .map(h => `<option value="col::${escapeHtml(h)}">${escapeHtml(h)}</option>`)
+                .join('');
+            return `
+                <div class="formula-row" data-var="${escapeHtml(varName)}" data-col="${escapeHtml(fc.header)}">
+                    <div class="formula-row-info">
+                        <span class="formula-col-name">📊 ${escapeHtml(fc.header)}</span>
+                        <code class="formula-expr">${escapeHtml(fc.formulaTemplate || '')}</code>
+                    </div>
+                    <div class="formula-var-label">Variable: <strong>${escapeHtml(varName)}</strong></div>
+                    <div class="formula-input-group">
+                        <select class="formula-var-select" id="fv-select-${escapeHtml(varName)}">
+                            <option value="">— pick a source column —</option>
+                            ${optionsHtml}
+                            <option value="const::">✏️ Enter a constant value…</option>
+                        </select>
+                        <input type="number" class="formula-const-input" id="fv-const-${escapeHtml(varName)}"
+                               placeholder="constant number" style="display:none;" step="any" />
+                    </div>
+                </div>
+            `;
+        }).join('');
+    }).join('<hr style="border:none;border-top:1px solid var(--border);margin:10px 0;">');
+
+    // Toggle constant input when user picks "Enter a constant"
+    body.querySelectorAll('.formula-var-select').forEach(sel => {
+        sel.addEventListener('change', () => {
+            const varName = sel.closest('.formula-row').dataset.var;
+            const constInput = document.getElementById(`fv-const-${varName}`);
+            constInput.style.display = sel.value === 'const::' ? 'block' : 'none';
+        });
+    });
+
+    modal.style.display = 'flex';
+
+    // Cancel
+    document.getElementById('formula-resolution-cancel').onclick = () => {
+        modal.style.display = 'none';
+    };
+
+    // Confirm
+    document.getElementById('formula-resolution-confirm').onclick = async () => {
+        const resolutions = {};
+        let allFilled = true;
+
+        body.querySelectorAll('.formula-row').forEach(row => {
+            const varName = row.dataset.var;
+            const sel = row.querySelector('.formula-var-select');
+            const constInput = row.querySelector('.formula-const-input');
+
+            if (!sel.value) {
+                // Not filled
+                sel.style.border = '2px solid var(--error, #ef4444)';
+                allFilled = false;
+                return;
+            }
+            sel.style.border = '';
+
+            if (sel.value === 'const::') {
+                const num = constInput.value.trim();
+                if (!num || isNaN(parseFloat(num))) {
+                    constInput.style.border = '2px solid var(--error, #ef4444)';
+                    allFilled = false;
+                    return;
+                }
+                constInput.style.border = '';
+                resolutions[varName] = { type: 'constant', value: num };
+            } else if (sel.value.startsWith('col::')) {
+                resolutions[varName] = { type: 'column', value: sel.value.slice(5) };
+            }
+        });
+
+        if (!allFilled) {
+            showToast('Incomplete', 'Please fill in all formula variable mappings before proceeding.', 'warning');
+            return;
+        }
+
+        currentFormulaResolutions = resolutions;
+        modal.style.display = 'none';
+        showToast('Formula Setup Done', 'Formula variables confirmed. Preparing preview…', 'success');
+        await showGenerationPreview();
+        updateNavigation(5);
+    };
+}
 
 // Helper functions
 function showStatus(element, message, type) {

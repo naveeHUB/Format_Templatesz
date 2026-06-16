@@ -7,6 +7,7 @@ const TemplateAnalyzer = require('../services/TemplateAnalyzer');
 const MatchingEngine = require('../services/MatchingEngine');
 const MappingService = require('../services/MappingService');
 const TransformationService = require('../services/TransformationService');
+const FormulaResolver = require('../services/FormulaResolver');
 
 const upload = multer({ dest: 'uploads/templates/' });
 const sourceUpload = multer({ dest: 'uploads/sources/' });
@@ -76,15 +77,18 @@ router.post('/mappings/:templateId', (req, res) => {
 // Transform data and generate output
 router.post('/transform', sourceUpload.single('file'), async (req, res) => {
     try {
-        const { templateId, mappings, outputFormat, format } = req.body;
+        const { templateId, mappings, outputFormat, format, formulaResolutions } = req.body;
         const targetFormat = format || outputFormat;
         const parsedMappings = JSON.parse(mappings);
+        const parsedFormulaResolutions = formulaResolutions
+            ? JSON.parse(formulaResolutions)
+            : {};
         
         const result = await TransformationService.transformData(
             req.file.path,
             templateId,
             parsedMappings,
-            { outputFormat: targetFormat }
+            { outputFormat: targetFormat, formulaResolutions: parsedFormulaResolutions }
         );
         
         // After transformation, delete the temporary source file
@@ -94,6 +98,55 @@ router.post('/transform', sourceUpload.single('file'), async (req, res) => {
             ...result,
             downloadUrl: `/api/download/${result.outputFilename}`,
             outputFormat: targetFormat
+        });
+    } catch (error) {
+        res.status(500).json({ error: error.message });
+    }
+});
+
+// ── GET full template structure by ID ────────────────────────────────────────
+router.get('/template/:templateId', (req, res) => {
+    const templateFile = path.join(__dirname, `../data/templates/${req.params.templateId}.json`);
+    if (!fs.existsSync(templateFile)) {
+        return res.status(404).json({ error: 'Template not found' });
+    }
+    res.json(JSON.parse(fs.readFileSync(templateFile, 'utf8')));
+});
+
+// ── POST /resolve-formulas — check which formula columns can be auto-resolved ─
+router.post('/resolve-formulas', (req, res) => {
+    try {
+        const { templateId, mappings } = req.body;
+
+        const templateFile = path.join(__dirname, `../data/templates/${templateId}.json`);
+        if (!fs.existsSync(templateFile)) {
+            return res.status(404).json({ error: 'Template not found' });
+        }
+
+        const templateStructure = JSON.parse(fs.readFileSync(templateFile, 'utf8'));
+
+        // Gather all formula columns across all sheets
+        const allFormulaColumns = [];
+        for (const sheet of templateStructure.sheets) {
+            if (sheet.formulaColumns && sheet.formulaColumns.length > 0) {
+                allFormulaColumns.push(...sheet.formulaColumns);
+            }
+        }
+
+        if (allFormulaColumns.length === 0) {
+            return res.json({
+                hasFormulaColumns: false,
+                autoResolved: [],
+                needsUserInput: []
+            });
+        }
+
+        const result = FormulaResolver.analyzeResolution(allFormulaColumns, mappings || {});
+
+        res.json({
+            hasFormulaColumns: true,
+            autoResolved: result.autoResolved,
+            needsUserInput: result.needsUserInput
         });
     } catch (error) {
         res.status(500).json({ error: error.message });

@@ -18,5 +18,8 @@ module.exports = class GenerationContext {
     this.templateWorkbook = templateWorkbook;
     this.mappings = mappings;
     this.options = options || {};
+    // User-confirmed formula variable bindings:
+    // { headerName: { type: 'column'|'constant', value: string } }
+    this.formulaResolutions = (options && options.formulaResolutions) || {};
   }
 };

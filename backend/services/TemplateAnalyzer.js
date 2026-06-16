@@ -40,22 +40,55 @@ class TemplateAnalyzer {
             headers: [],
             mergedCells: [],
             formulas: [],
-            formatting: {}
+            formatting: {},
+            formulaColumns: []      // columns computed by formulas in the template
         };
-        
-        // Extract headers from first row
+
+        // ── Step 1: Build column-letter → header-name map from row 1 ──────────
+        const colLetterToHeader = {};
         const headerRow = worksheet.getRow(1);
         for (let col = 1; col <= worksheet.columnCount; col++) {
             const cell = headerRow.getCell(col);
+            const v = cell.value ? cell.value.toString().trim() : null;
+            if (v) colLetterToHeader[this.getColumnLetter(col)] = v;
+        }
+
+        // ── Step 2: Detect formula-driven columns from the first data row (row 2) ──
+        const formulaColLetters = new Set();
+        for (let col = 1; col <= worksheet.columnCount; col++) {
+            const cell = worksheet.getRow(2).getCell(col);
+            if (cell.formula) {
+                const colLetter = this.getColumnLetter(col);
+                const headerName = colLetterToHeader[colLetter];
+                if (headerName) {
+                    formulaColLetters.add(colLetter);
+                    const { dependencies, isSimpleArithmetic } =
+                        this.parseFormulaDependencies(cell.formula, colLetterToHeader);
+                    sheetData.formulaColumns.push({
+                        header: headerName,
+                        columnLetter: colLetter,
+                        columnIndex: col,
+                        formulaTemplate: cell.formula,
+                        formulaDependencies: dependencies,   // [{columnLetter, headerName}]
+                        isSimpleArithmetic                   // false = complex; skip computation
+                    });
+                }
+            }
+        }
+
+        // ── Step 3: Extract headers, flagging formula columns ─────────────────
+        for (let col = 1; col <= worksheet.columnCount; col++) {
+            const cell = headerRow.getCell(col);
             const headerValue = cell.value ? cell.value.toString().trim() : null;
-            
+
             if (headerValue && headerValue !== '') {
                 sheetData.headers.push({
                     header: headerValue,
                     columnLetter: this.getColumnLetter(col),
                     columnIndex: col,
                     dataType: this.detectDataType(worksheet, col),
-                    required: this.isRequiredColumn(worksheet, col)
+                    required: this.isRequiredColumn(worksheet, col),
+                    isFormulaColumn: formulaColLetters.has(this.getColumnLetter(col))
                 });
             }
         }
@@ -131,6 +164,33 @@ class TemplateAnalyzer {
             colNumber = Math.floor(colNumber / 26);
         }
         return result;
+    }
+
+    /**
+     * Parse an Excel formula string and extract the column-letter references
+     * that appear as inputs (excluding the output column itself).
+     * Returns {dependencies: [{columnLetter, headerName}], isSimpleArithmetic: bool}
+     */
+    parseFormulaDependencies(formula, colLetterToHeader) {
+        // Match all column-letter+row-number tokens, e.g. B2, AA10
+        const colRefs = [...formula.matchAll(/\b([A-Z]+)\d+/g)].map(m => m[1]);
+        const uniqueRefs = [...new Set(colRefs)];
+
+        const dependencies = uniqueRefs
+            .map(colLetter => ({
+                columnLetter: colLetter,
+                headerName: colLetterToHeader[colLetter] || null
+            }))
+            .filter(d => d.headerName !== null);
+
+        // Strip the formula down to bare arithmetic and check for complex functions
+        const stripped = formula
+            .replace(/^=/, '')
+            .replace(/[A-Z]+\d+/g, '1')
+            .replace(/\s/g, '');
+        const isSimpleArithmetic = /^[0-9+\-*\/().]+$/.test(stripped);
+
+        return { dependencies, isSimpleArithmetic };
     }
 }
 

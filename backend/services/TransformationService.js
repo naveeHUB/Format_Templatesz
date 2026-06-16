@@ -47,7 +47,7 @@ class TransformationService {
             sourceWorkbook,
             templateWorkbook,
             mappings,
-            options
+            options   // options already contains formulaResolutions if provided
         });
 
         // Select appropriate generator via factory
